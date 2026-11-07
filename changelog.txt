@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.6.1
+Date: 2026-11-07
+  Changes:
+    - Removed the optional PickerAtheneum dependency. Its last release is for Factorio 1.1, so the range adjustment pad never loaded in 2.x.
+    - Removed the README section about equipment hotkeys that Nanobots2 does not have.
+---------------------------------------------------------------------------------------------------
 Version: 3.6.0
 Date: 2026-11-07
   Changes:

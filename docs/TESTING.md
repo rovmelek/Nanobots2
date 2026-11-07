@@ -36,7 +36,6 @@ For each case: place the ghost or marker, stand within range, and watch that the
 - [ ] Feeder chip heals the energy shield, or the player when below 75% health, using healing capsules from the inventory (a flat 10 if there are none).
 - [ ] Launcher chip launches combat robots.
 - [ ] Nano interface chip lets nanobots work inside a roboport network.
-- [ ] The reprogram GUI changes the radius for each ammo type and respects the maximum from research.
 
 ## Roboport interface
 
@@ -56,7 +55,7 @@ Build the interface inside a roboport network that has construction bots. Set on
 - [ ] With Space Age, and with Bob's mods, the roboport interface, chips and recipes look as in 3.5.3 (the load order can change now that the stdlib2 dependency is gone).
 - [ ] A tile ghost under an entity ghost waits for the entity ghost to be built first.
 - [ ] A mining drill with its resources used up is marked by the `nano-signal-deconstruct-finished-miners` signal, and one with resources left is not.
-- [ ] A 3.5.3 save loads, and its queues and the radius settings of the reprogram pad (`ranges`) are intact.
+- [ ] A 3.5.3 save loads, and its queues are intact.
 
 ## Commands and saves
 
