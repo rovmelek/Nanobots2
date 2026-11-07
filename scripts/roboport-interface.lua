@@ -1,9 +1,9 @@
 -------------------------------------------------------------------------------
 --[[roboport-interface]]
 -------------------------------------------------------------------------------
-local Event = require('__stdlib2__/stdlib/event/event')
-local Position = require('__stdlib2__/stdlib/area/position')
-local table = require('__stdlib2__/stdlib/utils/table')
+local Event = require('lib/stdlib').Event
+local Position = require('lib/stdlib').Position
+local table = require('lib/stdlib').table
 local Queue = require('scripts/hash_queue')
 local events = require('events')
 local queue
@@ -38,12 +38,6 @@ local params_to_check = {
         action = 'deconstruct_finished_miners',
         find_type = 'mining-drill'
     },
-    --[[['nano-signal-landfill-the-world'] = {
-        action = 'landfill_the_world'
-    },
-    ['nano-signal-remove-tiles'] = {
-        action = 'remove_tiles'
-    },]] -- signals removed
     ['nano-signal-catch-fish'] = {
         action = 'mark_items_or_trees',
         find_type = 'fish',
@@ -52,28 +46,13 @@ local params_to_check = {
 }
 
 --[[
-raw-wood-cutting, scan for trees, if value is negative only scan for trees if wood in network is less then that amount
-tile-item, scan for tiles, only checks first signal, if negative, will not place tiles unless that many are in network.
-item-on-ground-sig, Scan for items on ground, if found cell will check for items-ground and mark for pickup if no enemies in range
-networks-sig
-
-parameters ={
-    {
-        count = 1,
-        index = 1,
-        signal = {
-            name = "nano-signal-item-on-ground",
-            type = "virtual"
-        }
-    },
-    {
-        count = 1,
-        index = 2,
-        signal = {
-            type = "item"
-        }
-    },
-}
+Signals read from the interface's constant combinator, see params_to_check above:
+nano-signal-chop-trees: mark trees for deconstruction. A negative value only does it while the network holds fewer
+    than that many wood.
+nano-signal-catch-fish: the same for fish and raw fish.
+nano-signal-item-on-ground: mark items on the ground, if there are no enemies in range.
+nano-signal-deconstruct-finished-miners: mark mining drills that have nothing left to mine.
+nano-signal-closest-roboport: with a value above 0, only work in the cell next to the interface.
 --]]
 -- Read the signals set in the constant combinator. Factorio 2.x stores them in logistic sections.
 local function get_parameters(behaviour)

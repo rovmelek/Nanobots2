@@ -1,4 +1,4 @@
-local Data = require('__stdlib2__/stdlib/data/data')
+local Data = require('lib/stdlib-data').Data
 
 local function make_shortcut(chip)
     if mods['PickerInventoryTools'] then

@@ -1,8 +1,8 @@
-local Event = require('__stdlib2__/stdlib/event/event') -- protected mode is set in control.lua
-local Area = require('__stdlib2__/stdlib/area/area')
-local Position = require('__stdlib2__/stdlib/area/position')
-local table = require('__stdlib2__/stdlib/utils/table')
-local time = require('__stdlib2__/stdlib/utils/defines/time')
+local Event = require('lib/stdlib').Event -- protected mode is set in control.lua
+local Area = require('lib/stdlib').Area
+local Position = require('lib/stdlib').Position
+local table = require('lib/stdlib').table
+local time = require('lib/stdlib').time
 local Queue = require('scripts/hash_queue')
 local queue
 local cfg

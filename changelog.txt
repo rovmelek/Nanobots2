@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.5.2
+Date: 2026-11-07
+  Changes:
+    - Removed the not yet implemented tile signal entries from the readme.
+  Optimisations:
+    - All stdlib2 access goes through one local module per stage, a library rename is now a one line change.
+    - Removed dead code and stale comments.
+---------------------------------------------------------------------------------------------------
 Version: 3.5.1
 Date: 2026-11-07
   Changes:

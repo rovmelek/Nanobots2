@@ -2,7 +2,7 @@
 --[[armormods]] -- Power Armor module code.
 -------------------------------------------------------------------------------
 local armormods = {}
-local table = require('__stdlib2__/stdlib/utils/table')
+local table = require('lib/stdlib').table
 
 local config = require('config')
 
@@ -11,7 +11,7 @@ local config = require('config')
 local combat_robots = config.COMBAT_ROBOTS
 local healer_capsules = config.FOOD
 
-local Position = require('__stdlib2__/stdlib/area/position')
+local Position = require('lib/stdlib').Position
 local max, abs, ceil, floor = math.max, math.abs, math.ceil, math.floor
 local green = {r = 0, g = 1, b = 0}
 
@@ -60,7 +60,6 @@ local function is_personal_roboport_ready(entity, ignore_radius)
     return entity.grid and cell and cell.mobile and (cell.construction_radius > 0 or ignore_radius)
 end
 
---TODO .15 will have a better/more reliable way to get the construction network
 -- Does the entity have a personal robort and construction robots. Or is in range of a roboport with construction bots.
 -- @param entity: the entity object
 -- @param mobile_only: bool just return available construction bots in mobile cell
