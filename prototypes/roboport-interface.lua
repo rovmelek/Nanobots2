@@ -44,7 +44,6 @@ Data {
     name = 'roboport-interface',
     icon = '__Nanobots2__/graphics/icons/roboport-interface.png',
     icon_size = 64,
-    icon_mipmaps = 1,
     subgroup = 'logistic-network',
     order = 'c[signal]-a[roboport]-interface',
     place_result = 'roboport-interface-main',
@@ -56,7 +55,6 @@ Data {
     name = 'roboport-interface-cc',
     icon = '__Nanobots2__/graphics/icons/roboport-interface-cc.png',
     icon_size = 64,
-    icon_mipmaps = 1,
     hidden = true,
     subgroup = 'logistic-network',
     order = 'c[signal]-a[roboport]-interface-cc',
@@ -72,9 +70,7 @@ Constant-Combinator interface for setting the signals.
 --]]
 local ri_cc = Data('constant-combinator', 'constant-combinator'):copy('roboport-interface-cc')
 ri_cc.icon = '__Nanobots2__/graphics/icons/roboport-interface-cc.png'
-ri_cc.icon_mipmaps = 1
 ri_cc.icon_size = 64
-ri_cc.item_slot_count = 5
 ri_cc.flags = {'not-deconstructable', 'player-creation', 'placeable-off-grid'}
 ri_cc.collision_mask = {layers = {item = true, meltable = true, object = true, player = true, water_tile = true, is_object = true, is_lower_object = true}}
 ri_cc.minable = nil
@@ -114,13 +110,17 @@ local ri_radar = Data('radar', 'radar'):copy('roboport-interface-scanner')
 ri_radar.flags = {'not-deconstructable', 'player-creation', 'placeable-off-grid'}
 ri_radar.icon = '__Nanobots2__/graphics/icons/roboport-interface.png'
 ri_radar.icon_size = 64
-ri_radar.icon_mipmaps = 1
 ri_radar.minable = nil
 ri_radar.next_upgrade = nil
 ri_radar.collision_mask = {layers = {item = true, meltable = true, object = true, player = true, water_tile = true, is_object = true, is_lower_object = true}}
 ri_radar.selection_box = {{-1, 0}, {0, 1}}
 ri_radar.collision_box = {{-0.9, -0.9}, {0.9, 0.9}}
 ri_radar.pictures = Data.Sprites.empty_pictures()
+-- The copy of the base radar keeps its building art, circuit connector and radar network link, none of which the hidden scanner wants.
+ri_radar.integration_patch = nil
+ri_radar.circuit_connector = nil
+ri_radar.connects_to_other_radars = false
+ri_radar.hidden = true
 ri_radar.max_distance_of_sector_revealed = 0
 ri_radar.max_distance_of_nearby_sector_revealed = 1
 ri_radar.energy_per_sector = '20MJ'
@@ -132,7 +132,6 @@ Data {
     name = 'roboport-interface-main',
     icon = '__Nanobots2__/graphics/icons/roboport-interface.png',
     icon_size = 64,
-    icon_mipmaps = 1,
     flags = {'placeable-player', 'player-creation'},
     minable = {mining_time = 0.5, result = 'roboport-interface'},
     max_health = 500,

@@ -2,8 +2,9 @@ local Interface = require('lib/stdlib').Interface
 local _ = require('lib/stdlib').string -- loads string:split
 
 local function commands(event)
-    local player = game.players[event.player_index]
-    if player.admin then
+    -- player_index is nil for the server console and RCON, which are always allowed.
+    local player = event.player_index and game.get_player(event.player_index)
+    if not event.player_index or (player and player.admin) then
         local params = event.parameter and event.parameter:split(' ') or {}
         if params[1] == 'reset' then
             if params[2] == 'mod' then

@@ -30,7 +30,6 @@ local constructors = {
     stack_size = 100,
     ammo_category = 'nano-ammo',
     ammo_type = {
-        category = 'nano-ammo',
         target_type = 'position',
         action = {
             type = 'direct',

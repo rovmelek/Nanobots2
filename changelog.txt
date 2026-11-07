@@ -1,4 +1,18 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.5.3
+Date: 2026-11-07
+  Bugfixes:
+    - Fixed an error when the Nanobots2 command is used from the server console or RCON.
+    - Queued nanobot jobs no longer error when their player died or disconnected, the items are returned instead.
+    - One failing queued job no longer stops the rest of that tick or blocks its entity from being queued again.
+    - Fixed an error for ghosts and upgrade targets that no item can place.
+    - Nanobots no longer deconstruct things that other forces marked.
+    - Cloned roboport interfaces are set up like built ones.
+    - Ghosts are checked for room on their own surface.
+    - Recipes of the Bob's mods integration use the 2.0 item names.
+    - Removed prototype fields that do not exist in 2.1 (icon_mipmaps, ammo category, constant combinator slot count), fixed the overlay of the range and speed technology icons and the size of the nanobots technology icon.
+    - The hidden roboport interface scanner no longer draws the radar base art or joins the radar network.
+---------------------------------------------------------------------------------------------------
 Version: 3.5.2
 Date: 2026-11-07
   Changes:

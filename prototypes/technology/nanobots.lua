@@ -2,7 +2,7 @@ local tech1 = {
     type = 'technology',
     name = 'nanobots',
     icon = '__Nanobots2__/graphics/technology/tech-nanobots.png',
-    icon_size = 254,
+    icon_size = 256,
     effects = {
 --        {
 --            type = "ghost-time-to-live",
