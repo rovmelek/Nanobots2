@@ -19,9 +19,6 @@ local params_to_check = {
         action = 'mark_items_or_trees',
         find_type = 'item-entity'
     },
-    ['nano-tile'] = {
-        action = 'tile_ground'
-    },
     ['nano-signal-deconstruct-finished-miners'] = {
         action = 'deconstruct_finished_miners',
         find_type = 'mining-drill'

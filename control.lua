@@ -1,4 +1,6 @@
-local Event = require('__stdlib2__/stdlib/event/event').set_protected_mode(true)
+local config = require('config')
+-- Protected mode swallows handler errors. Set config.DEBUG = true in test builds so they crash loudly.
+local Event = require('__stdlib2__/stdlib/event/event').set_protected_mode(not config.DEBUG)
 local Interface = require('__stdlib2__/stdlib/scripts/interface').merge_interfaces(require('interface'))
 local Commands = require('commands')
 

@@ -54,10 +54,10 @@ function Queue.insert(t, data, tick, count)
     return t, count
 end
 
-function Queue.next(t, _next_tick, tick_spacing, dont_combine)
+function Queue.next(t, next_tick_hint, tick_spacing, dont_combine)
     tick_spacing = tick_spacing or 1
     local count = 0
-    local tick = (_next_tick and _next_tick >= game.tick and _next_tick) or game.tick
+    local tick = (next_tick_hint and next_tick_hint >= game.tick and next_tick_hint) or game.tick
     local next_tick = function(really_dont_combine)
         tick = tick + tick_spacing
         while (dont_combine or really_dont_combine) and t[tick] do
@@ -80,6 +80,8 @@ function Queue.execute(t, event)
             local index = data.hash
             if Queue[data.action] then
                 Queue[data.action](data)
+            else
+                log('Nanobots2: queued action has no handler and was skipped: ' .. tostring(data.action))
             end
             t._hash[index][data.action] = nil
             if table.size(t._hash[index]) <= 0 then

@@ -1,5 +1,6 @@
 local NANO = {}
 
+--Set to true for test builds: turns off stdlib protected mode so errors stop the game instead of being hidden.
 NANO.DEBUG = false
 
 --Combat robot names, indexed by capsule name
