@@ -13,7 +13,7 @@ end
 
 local Queue = {}
 
---- Count the ticks that have work queued. Only used to rebuild the counter of a queue saved before it existed.
+--- Count the ticks that have work queued, by walking the queue.
 local function count_ticks(t)
     local count = 0
     for index in pairs(t) do
@@ -26,7 +26,7 @@ end
 
 function Queue.new(t)
     if t and t._hash then
-        t._count = t._count or count_ticks(t)
+        -- Never write to the table here, Queue.new runs in on_load where storage is read only.
         return setmetatable(t, Queue.mt)
     else
         return setmetatable({_hash = {}, _count = 0}, Queue.mt)
@@ -43,6 +43,13 @@ end
 
 --- The number of ticks that have work queued, kept as a running counter so this is O(1).
 function Queue.count(t)
+    return t._count or count_ticks(t)
+end
+
+--- Store the running counter. Queues saved before it existed get it from the 3.5.0 migration, the first insert
+--- also does it. Must not be called from on_load.
+function Queue.rebuild_count(t)
+    t._count = count_ticks(t)
     return t._count
 end
 
@@ -59,6 +66,9 @@ end
 function Queue.insert(t, data, tick, count)
     data.hash = Queue.set_hash(t, data)
 
+    if not t._count then
+        Queue.rebuild_count(t)
+    end
     if not t[tick] then
         t[tick] = {}
         t._count = t._count + 1
@@ -103,7 +113,7 @@ function Queue.execute(t, event)
             end
         end
         t[event.tick] = nil
-        t._count = t._count - 1
+        t._count = t._count and (t._count - 1) or count_ticks(t)
     end
     return t
 end

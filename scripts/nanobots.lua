@@ -453,12 +453,18 @@ end
 -- invalidated between the time they were entered into the queue and now.
 
 
--- - @class Nanobots.data
--- - @field player_index number
--- - @field entity LuaEntity
--- - @field surface LuaSurface
--- - @field position MapPosition
--- - @field item_stack ItemStackDefinition
+--- @class Nanobots.data
+--- @field player_index number
+--- @field entity LuaEntity
+--- @field surface LuaSurface
+--- @field position MapPosition
+--- @field unit_number number|nil
+--- @field action string
+--- @field hash number set by the queue on insert
+--- @field item_stack ItemStackDefinition|nil
+--- @field entity_name string|nil
+--- @field quality string|nil
+--- @field deconstructors boolean|nil
 
 --- @param data Nanobots.data
 function Queue.cliff_deconstruction(data)
@@ -692,7 +698,7 @@ local REPAIR_SCAN_EVERY = 3
 --- @param entity LuaEntity
 --- @return Nanobots.data
 local function new_job(ctx, entity)
-    ---@type Nanobots.data
+    --- @type Nanobots.data
     return {
         player_index = ctx.player.index,
         position = entity.position,
@@ -867,8 +873,6 @@ end
 --- The scans, in priority order. `filter` is merged with the area, `force` is added when `same_force` is set.
 local scans = {
     {filter = {to_be_deconstructed = true}, planner = plan_deconstruct},
-    -- Tile proxies are found by type as well, the planner checks the mark itself.
-    {filter = {type = 'deconstructible-tile-proxy'}, planner = plan_deconstruct},
     {filter = {to_be_upgraded = true}, same_force = true, planner = plan_upgrade},
     {filter = {type = {'entity-ghost', 'tile-ghost'}}, same_force = true, skip_marked = true, planner = plan_ghost},
     {filter = {type = 'item-request-proxy'}, same_force = true, skip_marked = true, planner = plan_proxy, enabled = function() return cfg.do_proxies end},
