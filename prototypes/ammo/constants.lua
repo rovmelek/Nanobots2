@@ -5,35 +5,35 @@ constants.projectile_animation = {
             filename = '__base__/graphics/entity/defender-robot/defender-robot.png',
             priority = 'high',
             line_length = 16,
-            width = 32,
-            height = 33,
+            width = 56,
+            height = 59,
             frame_count = 16,
             direction_count = 1,
             shift = {0, 0.015625},
-            scale = 0.5
+            scale = 0.25
         },
         {
             filename = '__base__/graphics/entity/defender-robot/defender-robot-mask.png',
             priority = 'high',
             line_length = 16,
-            width = 18,
-            height = 16,
+            width = 28,
+            height = 21,
             frame_count = 16,
             direction_count = 1,
             shift = {0, -0.125},
             apply_runtime_tint = true,
-            scale = 0.5
+            scale = 0.25
         },
         {
             filename = '__base__/graphics/entity/defender-robot/defender-robot-shadow.png',
             priority = 'high',
             line_length = 16,
-            width = 43,
-            height = 23,
+            width = 88,
+            height = 50,
             frame_count = 16,
             direction_count = 1,
             shift = {0.859375, 0.609375},
-            scale = 0.5
+            scale = 0.25
         }
     }
 }

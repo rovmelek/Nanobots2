@@ -123,7 +123,12 @@ local function has_resources(miner)
     local _find = function(v, _)
         return v.prototype.resource_category == 'basic-solid' and (v.amount > 0 or v.prototype.infinite_resource)
     end
-    local filter = {area = Position.expand_to_area(miner.position, miner.prototype.mining_drill_radius), type = 'resource'}
+    -- Quality can change the mining radius; use the quality aware getter when this game version has it.
+    local has_getter, radius = pcall(function() return miner.prototype.get_mining_drill_radius(miner.quality) end)
+    if not (has_getter and radius) then
+        radius = miner.prototype.mining_drill_radius
+    end
+    local filter = {area = Position.expand_to_area(miner.position, radius), type = 'resource'}
     if miner.mining_target then
         return (miner.mining_target.amount or 0) > 0
     else

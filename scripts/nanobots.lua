@@ -65,11 +65,11 @@ update_settings()
 --- @param player LuaPlayer
 --- @param at_least_one boolean
 --- @return boolean
-local _find_item = function(simple_stack, _, player, at_least_one)
-    local item, count = simple_stack.name, simple_stack.count
-    count = at_least_one and 1 or count
-    local prototype = prototypes.item[item]
+local _find_item = function(simple_stack, _, player, at_least_one, quality)
+    local count = at_least_one and 1 or simple_stack.count
+    local prototype = prototypes.item[simple_stack.name]
     if prototype.type ~= 'item-with-inventory' then
+        local item = { name = simple_stack.name, quality = quality or simple_stack.quality or 'normal' }
         if player.cheat_mode or player.get_item_count(item) >= count then
             return true
         else
@@ -78,6 +78,24 @@ local _find_item = function(simple_stack, _, player, at_least_one)
             return vehicle and ((vehicle.get_item_count(item) >= count) or (train and train.get_item_count(item) >= count))
         end
     end
+end
+
+--- The name of a quality, from a QualityID string or a LuaQualityPrototype.
+--- @param quality string|LuaQualityPrototype|nil
+--- @return string
+local function quality_name(quality)
+    if type(quality) == 'string' then
+        return quality
+    end
+    return quality and quality.name or 'normal'
+end
+
+--- Copy an item to place, adding the quality it is needed in.
+--- @param simple_stack ItemStackDefinition
+--- @param quality string
+--- @return ItemStackDefinition
+local function with_quality(simple_stack, quality)
+    return { name = simple_stack.name, count = simple_stack.count, quality = quality }
 end
 
 --- Is the player connected, not afk, and have an attached character
@@ -185,11 +203,15 @@ local function insert_or_spill_items(entity, item_stacks, is_return_cheat)
             new_stacks = { item_stacks }
         end
         for _, stack in pairs(new_stacks) do
-            local name, count, health = stack.name, stack.count, stack.health or 1
+            local name, count, health, quality = stack.name, stack.count, stack.health or 1, quality_name(stack.quality)
             if prototypes.item[name] and not prototypes.item[name].hidden then
-                local inserted = entity.insert({ name = name, count = count, health = health })
+                local inserted = entity.insert({ name = name, count = count, health = health, quality = quality })
                 if inserted ~= count then
-                    entity.surface.spill_item_stack { position = entity.position, stack = { name = name, count = count - inserted, health = health }, enable_looted = true }
+                    entity.surface.spill_item_stack {
+                        position = entity.position,
+                        stack = { name = name, count = count - inserted, health = health, quality = quality },
+                        enable_looted = true
+                    }
                 end
             end
         end
@@ -208,10 +230,10 @@ local function insert_into_entity(entity, item_stacks)
     end
     local new_stacks = {}
     for _, stack in pairs(item_stacks) do
-        local name, count, health = stack.name, stack.count, stack.health or 1
-        local inserted = entity.insert(stack)
+        local name, count, health, quality = stack.name, stack.count, stack.health or 1, quality_name(stack.quality)
+        local inserted = entity.insert({ name = name, count = count, health = health, quality = quality })
         if inserted ~= count then
-            new_stacks[#new_stacks + 1] = { name = name, count = count - inserted, health = health }
+            new_stacks[#new_stacks + 1] = { name = name, count = count - inserted, health = health, quality = quality }
         end
     end
     return new_stacks
@@ -225,14 +247,15 @@ local function get_all_items_on_ground(entity, existing_stacks)
     local surface, position, bouding_box = entity.surface, entity.position, entity.ghost_prototype.selection_box
     local area = Area.offset(bouding_box, position)
     for _, item_on_ground in pairs(surface.find_entities_filtered { name = 'item-on-ground', area = area }) do
-        item_stacks[#item_stacks + 1] = { name = item_on_ground.stack.name, count = item_on_ground.stack.count, health = item_on_ground.health or 1 }
+        local ground_stack = item_on_ground.stack
+        item_stacks[#item_stacks + 1] = { name = ground_stack.name, count = ground_stack.count, health = ground_stack.health or 1, quality = ground_stack.quality.name }
         item_on_ground.destroy()
     end
     local inserter_area = Area.expand(area, 3)
     for _, inserter in pairs(surface.find_entities_filtered { area = inserter_area, type = 'inserter' }) do
         local stack = inserter.held_stack
         if stack.valid_for_read and Position.inside(inserter.held_stack_position, area) then
-            item_stacks[#item_stacks + 1] = { name = stack.name, count = stack.count, health = stack.health or 1 }
+            item_stacks[#item_stacks + 1] = { name = stack.name, count = stack.count, health = stack.health or 1, quality = stack.quality.name }
             stack.clear()
         end
     end
@@ -246,8 +269,10 @@ end
 --- @param at_least_one boolean #return as long as count > 0
 --- @return ItemStackDefinition|nil
 local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
+    local quality = quality_name(item_stack.quality)
+    local item = { name = item_stack.name, quality = quality }
     if cheat then
-        return { name = item_stack.name, count = item_stack.count, health = 1 }
+        return { name = item_stack.name, count = item_stack.count, health = 1, quality = quality }
     else
         local sources
         if entity.vehicle and entity.vehicle.train then
@@ -259,15 +284,15 @@ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
             sources = { entity.character }
         end
 
-        local new_item_stack = { name = item_stack.name, count = 0, health = 1 }
+        local new_item_stack = { name = item_stack.name, count = 0, health = 1, quality = quality }
 
         local count = item_stack.count
 
         for _, source in pairs(sources) do
             for _, inv in pairs(inv_list) do
                 local inventory = source.get_inventory(inv)
-                if inventory and inventory.valid and inventory.get_item_count(item_stack.name) > 0 then
-                    local stack = inventory.find_item_stack(item_stack.name)
+                if inventory and inventory.valid and inventory.get_item_count(item) > 0 then
+                    local stack = inventory.find_item_stack(item)
                     while stack do
                         local removed = math.min(stack.count, count)
                         new_item_stack.count = new_item_stack.count + removed
@@ -278,7 +303,7 @@ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
                         if new_item_stack.count == item_stack.count then
                             return new_item_stack
                         end
-                        stack = inventory.find_item_stack(item_stack.name)
+                        stack = inventory.find_item_stack(item)
                     end
                 end
             end
@@ -286,7 +311,7 @@ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
         -- If we havn't returned here check the hand!
         if entity.is_player() then
             local stack = entity.cursor_stack
-            if stack and stack.valid_for_read and stack.name == item_stack.name then
+            if stack and stack.valid_for_read and stack.name == item_stack.name and stack.quality.name == quality then
                 local removed = math.min(stack.count, count)
                 new_item_stack.count = new_item_stack.count + removed
                 new_item_stack.health = new_item_stack.health * stack.health
@@ -345,14 +370,14 @@ end
 --- @param proxy LuaEntity the item request proxy
 --- @param name string the item that was delivered
 --- @param amount number how many were delivered
-local function reduce_insert_plan(proxy, name, amount)
+local function reduce_insert_plan(proxy, name, quality, amount)
     if not (proxy and proxy.valid) then
         return
     end
     local new_plan = {}
     for _, entry in pairs(proxy.insert_plan) do
         local items = entry.items or {}
-        if amount > 0 and entry.id.name == name then
+        if amount > 0 and entry.id.name == name and quality_name(entry.id.quality) == quality then
             local kept = {}
             for _, pos in pairs(items.in_inventory or {}) do
                 local count = pos.count or 1
@@ -397,15 +422,15 @@ local function satisfy_requests(proxy, entity, player)
         if not proxy.valid then
             return
         end
-        local name, count = request.name, request.count
-        if count > 0 and entity.can_insert(name) then
-            local removed = player.cheat_mode and count or pinv.remove({ name = name, count = count })
-            local inserted = removed > 0 and entity.insert({ name = name, count = removed }) or 0
+        local name, count, quality = request.name, request.count, quality_name(request.quality)
+        if count > 0 and entity.can_insert({ name = name, quality = quality }) then
+            local removed = player.cheat_mode and count or pinv.remove({ name = name, count = count, quality = quality })
+            local inserted = removed > 0 and entity.insert({ name = name, count = removed, quality = quality }) or 0
             if removed > inserted and not player.cheat_mode then
-                pinv.insert({ name = name, count = removed - inserted })
+                pinv.insert({ name = name, count = removed - inserted, quality = quality })
             end
             if inserted > 0 then
-                reduce_insert_plan(proxy, name, inserted)
+                reduce_insert_plan(proxy, name, quality, inserted)
             end
         end
     end
@@ -603,6 +628,7 @@ function Queue.upgrade_ghost(data)
         fast_replace = true,
         player = player,
         type = ghost.type == 'underground-belt' and ghost.belt_to_ground_type or nil,
+        quality = data.quality or quality_name(data.item_stack.quality),
         raise_built = true
     }
     if not entity then
@@ -641,7 +667,7 @@ function Queue.item_requests(data)
     end
 
     if inserted > 0 then
-        reduce_insert_plan(proxy, item_stack.name, inserted)
+        reduce_insert_plan(proxy, item_stack.name, quality_name(item_stack.quality), inserted)
     end
 end
 
@@ -703,36 +729,31 @@ local function queue_ghosts_in_range(player, pos, nano_ammo)
                                     ammo_drain(player, nano_ammo, 1)
                                 end
                             elseif upgrade then
-                                local prototype, quality = ghost.get_upgrade_target()
-                                -- Quality upgrades need items of that quality, leave them to construction robots.
-                                if prototype and not (quality and quality.name ~= ghost.quality.name) then
-                                    if prototype.name == ghost.name then
-                                        local has_dir, dir = pcall(function() return ghost.get_upgrade_direction() end)
-                                        if has_dir and dir and ghost.direction ~= dir then
-                                            data.action = 'upgrade_direction'
-                                            data.direction = dir
+                                -- 2.x: the target can change the entity, its quality or both (get_upgrade_direction was removed).
+                                local prototype, target_quality = ghost.get_upgrade_target()
+                                local quality = target_quality and target_quality.name or ghost.quality.name
+                                if prototype and (prototype.name ~= ghost.name or quality ~= ghost.quality.name) then
+                                    local item_stack = table_find(prototype.items_to_place_this, _find_item, player, false, quality)
+                                    if item_stack then
+                                        data.action = 'upgrade_ghost'
+                                        local place_item = get_items_from_inv(player, with_quality(item_stack, quality), player.cheat_mode)
+                                        if place_item then
+                                            data.entity_name = prototype.name
+                                            data.quality = quality
+                                            data.item_stack = place_item
                                             queue:insert(data, next_tick())
                                             ammo_drain(player, nano_ammo, 1)
-                                        end
-                                    else
-                                        local item_stack = table_find(prototype.items_to_place_this, _find_item, player)
-                                        if item_stack then
-                                            data.action = 'upgrade_ghost'
-                                            local place_item = get_items_from_inv(player, item_stack, player.cheat_mode)
-                                            if place_item then
-                                                data.entity_name = prototype.name
-                                                data.item_stack = place_item
-                                                queue:insert(data, next_tick())
-                                                ammo_drain(player, nano_ammo, 1)
-                                            end
                                         end
                                     end
                                 end
                             elseif ghost.name == 'entity-ghost' or (ghost.name == 'tile-ghost' and cfg.build_tiles) then
                                 -- get first available item that places entity from inventory that is not in our hand.
                                 local proto = ghost.ghost_prototype
-                                local item_stack = table_find(proto.items_to_place_this, _find_item, player)
+                                -- Ghosts are revived at their own quality, so use an item of that quality. Tiles have no quality.
+                                local quality = ghost.name == 'entity-ghost' and ghost.quality.name or 'normal'
+                                local item_stack = table_find(proto.items_to_place_this, _find_item, player, false, quality)
                                 if item_stack then
+                                    item_stack = with_quality(item_stack, quality)
                                     if ghost.name == 'entity-ghost' then
                                         local place_item = get_items_from_inv(player, item_stack, player.cheat_mode)
                                         if place_item then
@@ -775,7 +796,7 @@ local function queue_ghosts_in_range(player, pos, nano_ammo)
                             elseif ghost.name == 'item-request-proxy' and cfg.do_proxies then
                                 local items = {}
                                 for _, request in pairs(ghost.item_requests) do
-                                    items[#items + 1] = { name = request.name, count = request.count }
+                                    items[#items + 1] = { name = request.name, count = request.count, quality = quality_name(request.quality) }
                                 end
                                 local item_stack = table_find(items, _find_item, player, true)
                                 if item_stack then
