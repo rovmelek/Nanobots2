@@ -1,12 +1,8 @@
 local config = require('config')
 -- Protected mode swallows handler errors. Set config.DEBUG = true in test builds so they crash loudly.
-local Event = require('__stdlib2__/stdlib/event/event').set_protected_mode(not config.DEBUG)
+require('__stdlib2__/stdlib/event/event').set_protected_mode(not config.DEBUG)
 local Interface = require('__stdlib2__/stdlib/scripts/interface').merge_interfaces(require('interface'))
 local Commands = require('commands')
-
-local ev = defines.events
-Event.build_events = {ev.on_built_entity, ev.on_robot_built_entity, ev.script_raised_built, ev.script_raised_revive, ev.on_entity_cloned}
-Event.mined_events = {ev.on_pre_player_mined_item, ev.on_robot_pre_mined, ev.script_raised_destroy}
 
 local Player = require('__stdlib2__/stdlib/event/player').register_events(true)
 require('__stdlib2__/stdlib/event/force').register_events(true)

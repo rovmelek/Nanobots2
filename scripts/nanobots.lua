@@ -6,6 +6,8 @@ local time = require('__stdlib2__/stdlib/utils/defines/time')
 local Queue = require('scripts/hash_queue')
 local queue
 local cfg
+--- Handlers for the nano queue, by action name.
+local handlers = {}
 
 local max, floor, table_size, table_find = math.max, math.floor, table_size, table.find
 
@@ -219,6 +221,17 @@ local function insert_or_spill_items(entity, item_stacks, is_return_cheat)
     end
 end
 
+--- Give a job's items back to its player. Nothing was taken in cheat mode, so nothing is returned.
+--- The cheat mode of the moment the items were taken is stored in the job, the player can change it while jobs wait.
+--- @param player LuaPlayer
+--- @param item_stack ItemStackDefinition|nil
+--- @param cheat boolean|nil cheat mode when the job was queued
+local function refund(player, item_stack, cheat)
+    if item_stack then
+        return insert_or_spill_items(player, { item_stack }, cheat)
+    end
+end
+
 --- Attempt to insert an arrary of items stacks into an entity
 --- @param entity LuaEntity
 --- @param item_stacks ItemStackDefinition|ItemStackDefinition[]
@@ -237,6 +250,17 @@ local function insert_into_entity(entity, item_stacks)
         end
     end
     return new_stacks
+end
+
+--- Set the health of a freshly built entity from the health of the item it was built from.
+--- Entities without health (nil) or that start dead are left alone.
+--- @param entity LuaEntity
+--- @param item_stack ItemStackDefinition|nil
+local function restore_health(entity, item_stack)
+    local health = entity.health
+    if health and health > 0 then
+        entity.health = (item_stack and item_stack.health or 1) * entity.max_health
+    end
 end
 
 --- Scan the ground under a ghost entities collision box for items and return an array of SimpleItemStack.
@@ -285,6 +309,15 @@ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
         end
 
         local new_item_stack = { name = item_stack.name, count = 0, health = 1, quality = quality }
+        -- Health is averaged over the items taken, each stack weighted by how many items came from it.
+        local health_total = 0
+
+        local function finish()
+            if new_item_stack.count > 0 then
+                new_item_stack.health = health_total / new_item_stack.count
+            end
+            return new_item_stack
+        end
 
         local count = item_stack.count
 
@@ -296,12 +329,12 @@ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
                     while stack do
                         local removed = math.min(stack.count, count)
                         new_item_stack.count = new_item_stack.count + removed
-                        new_item_stack.health = new_item_stack.health * stack.health
+                        health_total = health_total + removed * stack.health
                         stack.count = stack.count - removed
                         count = count - removed
 
                         if new_item_stack.count == item_stack.count then
-                            return new_item_stack
+                            return finish()
                         end
                         stack = inventory.find_item_stack(item)
                     end
@@ -314,7 +347,7 @@ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
             if stack and stack.valid_for_read and stack.name == item_stack.name and stack.quality.name == quality then
                 local removed = math.min(stack.count, count)
                 new_item_stack.count = new_item_stack.count + removed
-                new_item_stack.health = new_item_stack.health * stack.health
+                health_total = health_total + removed * stack.health
                 if removed >= stack.count then
                     stack.clear()
                 else
@@ -322,11 +355,14 @@ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
                 end
             end
         end
-        if new_item_stack.count == item_stack.count then
-            return new_item_stack
-        elseif new_item_stack.count > 0 and at_least_one then
-            return new_item_stack
+        if new_item_stack.count == item_stack.count or (new_item_stack.count > 0 and at_least_one) then
+            return finish()
         else
+            -- Not enough items, put back what was already taken.
+            if new_item_stack.count > 0 then
+                local taken = finish()
+                insert_or_spill_items(entity, { taken })
+            end
             return nil
         end
     end
@@ -459,6 +495,7 @@ end
 --- @field surface LuaSurface
 --- @field position MapPosition
 --- @field unit_number number|nil
+--- @field cheat boolean cheat mode of the player when the items were taken
 --- @field action string
 --- @field hash number set by the queue on insert
 --- @field item_stack ItemStackDefinition|nil
@@ -467,14 +504,14 @@ end
 --- @field deconstructors boolean|nil
 
 --- @param data Nanobots.data
-function Queue.cliff_deconstruction(data)
+function handlers.cliff_deconstruction(data)
     local entity, player = data.entity, game.get_player(data.player_index)
     if not (player and player.valid) then
         return
     end
 
     if not (entity and entity.valid and entity.to_be_deconstructed()) then
-        return insert_or_spill_items(player, { data.item_stack })
+        return refund(player, data.item_stack, data.cheat)
     end
 
     create_projectile('nano-projectile-deconstructors', entity.surface, entity.force, player.character.position, entity.position)
@@ -485,7 +522,7 @@ end
 
 -- Handles all of the deconstruction and scrapper related tasks.
 --- @param data Nanobots.data
-function Queue.deconstruction(data)
+function handlers.deconstruction(data)
     local entity = data.entity
     local player = game.get_player(data.player_index)
     if not (player and player.valid) then
@@ -516,7 +553,7 @@ function Queue.deconstruction(data)
 end
 
 --- @param data Nanobots.data
-function Queue.build_entity_ghost(data)
+function handlers.build_entity_ghost(data)
     local ghost = data.entity
     local player = game.get_player(data.player_index)
     local surface = data.surface
@@ -526,29 +563,30 @@ function Queue.build_entity_ghost(data)
     end
 
     if not (ghost.valid and data.entity.ghost_name == data.entity_name) then
-        return insert_or_spill_items(player, { data.item_stack }, player.cheat_mode)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     local item_stacks = get_all_items_on_ground(ghost)
     if not player.surface.can_place_entity { name = ghost.ghost_name, position = ghost.position, direction = ghost.direction, force = ghost.force } then
-        return insert_or_spill_items(player, { data.item_stack }, player.cheat_mode)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     local revived, entity, requests = ghost.revive { raise_revive = true }
 
     if not revived then
-        return insert_or_spill_items(player, { data.item_stack }, player.cheat_mode)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     if not entity then
-        if insert_or_spill_items(player, item_stacks, player.cheat_mode) then
+        -- These are real items from the ground, so they are returned in cheat mode too.
+        if insert_or_spill_items(player, item_stacks) then
             create_projectile('nano-projectile-return', surface, player.force, position, player.character.position)
         end
         return
     end
 
     create_projectile('nano-projectile-constructors', entity.surface, entity.force, player.character.position, entity.position)
-    entity.health = (entity.health > 0) and ((data.item_stack.health or 1) * entity.max_health)
+    restore_health(entity, data.item_stack)
     if insert_or_spill_items(player, insert_into_entity(entity, item_stacks)) then
         create_projectile('nano-projectile-return', surface, player.force, position, player.character.position)
     end
@@ -558,7 +596,7 @@ function Queue.build_entity_ghost(data)
 end
 
 --- @param data Nanobots.data
-function Queue.build_tile_ghost(data)
+function handlers.build_tile_ghost(data)
     local ghost = data.entity
     local player = game.get_player(data.player_index)
     local surface = data.surface
@@ -568,7 +606,7 @@ function Queue.build_tile_ghost(data)
     end
 
     if not ghost.valid then
-        return insert_or_spill_items(player, { data.item_stack })
+        return refund(player, data.item_stack, data.cheat)
     end
 
     local tile, hidden_tile = surface.get_tile(position), surface.get_hidden_tile(position)
@@ -576,7 +614,7 @@ function Queue.build_tile_ghost(data)
     local tile_was_mined = hidden_tile and tile.prototype.can_be_part_of_blueprint and player.mine_tile(tile)
     local ghost_was_revived = ghost.valid and ghost.revive({ raise_revive = true }) -- Mining tiles invalidates ghosts
     if not (tile_was_mined or ghost_was_revived) then
-        return insert_or_spill_items(player, { data.item_stack })
+        return refund(player, data.item_stack, data.cheat)
     end
 
     local item_ptype = data.item_stack and prototypes.item[data.item_stack.name]
@@ -594,26 +632,7 @@ function Queue.build_tile_ghost(data)
 end
 
 --- @param data Nanobots.data
-function Queue.upgrade_direction(data)
-    local ghost = data.entity
-    local player = game.get_player(data.player_index)
-    local surface = data.surface
-    if not (player and player.valid) then
-        return
-    end
-
-    if not (ghost.valid and ghost.to_be_upgraded()) then
-        return
-    end
-
-    ghost.direction = data.direction
-    ghost.cancel_upgrade(player.force, player)
-    create_projectile('nano-projectile-constructors', ghost.surface, ghost.force, player.character.position, ghost.position)
-    surface.play_sound { path = 'utility/build_small', position = ghost.position }
-end
-
---- @param data Nanobots.data
-function Queue.upgrade_ghost(data)
+function handlers.upgrade_ghost(data)
     local ghost = data.entity
     local player = game.get_player(data.player_index)
     local surface = data.surface
@@ -623,7 +642,7 @@ function Queue.upgrade_ghost(data)
     end
 
     if not ghost.valid then
-        return insert_or_spill_items(player, { data.item_stack })
+        return refund(player, data.item_stack, data.cheat)
     end
 
     local entity = surface.create_entity {
@@ -638,16 +657,16 @@ function Queue.upgrade_ghost(data)
         raise_built = true
     }
     if not entity then
-        return insert_or_spill_items(player, { data.item_stack })
+        return refund(player, data.item_stack, data.cheat)
     end
 
     create_projectile('nano-projectile-constructors', entity.surface, entity.force, player.character.position, entity.position)
     surface.play_sound { path = 'utility/build_small', position = entity.position }
-    entity.health = (entity.health > 0) and ((data.item_stack.health or 1) * entity.max_health)
+    restore_health(entity, data.item_stack)
 end
 
 --- @param data Nanobots.data
-function Queue.item_requests(data)
+function handlers.item_requests(data)
     local proxy = data.entity
     local player = game.get_player(data.player_index)
     local target = proxy.valid and proxy.proxy_target ---@type LuaEntity
@@ -656,11 +675,11 @@ function Queue.item_requests(data)
     end
 
     if not (proxy.valid and target and target.valid) then
-        return insert_or_spill_items(player, { data.item_stack })
+        return refund(player, data.item_stack, data.cheat)
     end
 
     if not target.can_insert(data.item_stack) then
-        return insert_or_spill_items(player, { data.item_stack })
+        return refund(player, data.item_stack, data.cheat)
     end
 
     create_projectile('nano-projectile-constructors', proxy.surface, proxy.force, player.character.position, proxy.position)
@@ -669,7 +688,7 @@ function Queue.item_requests(data)
     item_stack.count = item_stack.count - inserted
 
     if item_stack.count > 0 then
-        insert_or_spill_items(player, { item_stack })
+        refund(player, item_stack, data.cheat)
     end
 
     if inserted > 0 then
@@ -704,6 +723,7 @@ local function new_job(ctx, entity)
         position = entity.position,
         surface = entity.surface,
         unit_number = entity.unit_number,
+        cheat = ctx.player.cheat_mode,
         entity = entity
     }
 end
@@ -979,22 +999,35 @@ end
 Event.register({ defines.events.on_player_joined_game, defines.events.on_player_left_game }, players_changed)
 
 local function on_nano_init()
-    storage.nano_queue = Queue()
+    storage.nano_queue = Queue(nil, handlers)
     queue = storage.nano_queue
     game.print('Nanobots are now ready to serve')
 end
 Event.register(Event.core_events.init, on_nano_init)
 
 local function on_nano_load()
-    queue = Queue(storage.nano_queue)
+    queue = Queue(storage.nano_queue, handlers)
 end
 Event.register(Event.core_events.load, on_nano_load)
 
 local function reset_nano_queue()
-    storage.nano_queue = nil
-    queue = nil
-    storage.nano_queue = Queue()
+    -- Swap in the new queue first, so a failing refund cannot leave jobs in the live queue to be refunded twice.
+    local old = queue
+    storage.nano_queue = Queue(nil, handlers)
     queue = storage.nano_queue
+    -- Jobs already took their items from the player, give them back before the old jobs are dropped.
+    if old then
+        for tick, jobs in pairs(old) do
+            if type(tick) == 'number' then
+                for _, job in pairs(jobs) do
+                    local player = game.get_player(job.player_index)
+                    if player and player.valid and job.item_stack then
+                        pcall(refund, player, job.item_stack, job.cheat)
+                    end
+                end
+            end
+        end
+    end
     for _, player in pairs(storage.players) do
         player._next_nano_tick = 0
     end
