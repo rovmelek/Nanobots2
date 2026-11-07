@@ -13,8 +13,6 @@ require('scripts/nanobots')
 require('scripts/roboport-interface')
 require('scripts/armor-mods')
 
-require('scripts/reprogram-gui')
-
 remote.add_interface(script.mod_name, require('interface'))
 
 commands.add_command(script.mod_name, 'Nanobot commands', require('commands'))

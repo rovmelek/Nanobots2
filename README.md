@@ -34,18 +34,6 @@ Reprogram your personal roboport to do a lot of the mundane tasks for you. Most 
 
 --------------------------------------------------------------------------------
 
-#### Hotkeys and More
-
-Hotkeys are available to toggle equipment on or off. Personal Roboports, Exoskeletons, Night-vision, All or individual Nanobot equipment modules.
-If a piece of equipment in your armor is not enabled, adding more pieces of that equipment will install the disabled version.
-Equipment states will stay with the power armor making it easy to swap out power armors without having to remember to also toggle the equipment. It is also possible to limit the range that nanobots will work in.
-
-- Switching weapons in a vehicle will now also switch your characters weapons. as long as it is assigned to the same as the switch weapon key, Or you can assign it to a separate key.
-- Ctrl F1 - F7 Will toggle specific modular armor equipment on or off. A visual GUI is planned for this in the future.
-- Set the maximum radius that a module or nanobot ammo will work by holding the ammo or module in your hand and using the GUI or hotkeys to increase or decrease the range. It is possible to set this value higher than the maximum allowed but it will have no effect.
-
---------------------------------------------------------------------------------
-
 #### Roboport Interface
 
 The roboport interface allows you to program your logistic networks to do mundane tasks for you. Place a Roboport interface and set virtual signals on the built in combinator. If there are enemies in the construction zone your robots will not execute these tasks. Only up to half of your available construction bots will be uses for these tasks.
