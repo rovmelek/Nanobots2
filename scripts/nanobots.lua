@@ -232,6 +232,20 @@ local function refund(player, item_stack, cheat)
     end
 end
 
+--- Drop a job's items on the ground where the job was, for a player that has no character to insert into.
+--- @param data Nanobots.data
+local function spill_job_items(data)
+    local stack = data.item_stack
+    local surface = data.surface
+    if stack and not data.cheat and surface and surface.valid then
+        surface.spill_item_stack {
+            position = data.position,
+            stack = { name = stack.name, count = stack.count, health = stack.health or 1, quality = quality_name(stack.quality) },
+            enable_looted = true
+        }
+    end
+end
+
 --- Attempt to insert an arrary of items stacks into an entity
 --- @param entity LuaEntity
 --- @param item_stacks ItemStackDefinition|ItemStackDefinition[]
@@ -509,6 +523,10 @@ function handlers.cliff_deconstruction(data)
     if not (player and player.valid) then
         return
     end
+    if not player.character then
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
+    end
 
     if not (entity and entity.valid and entity.to_be_deconstructed()) then
         return refund(player, data.item_stack, data.cheat)
@@ -527,6 +545,10 @@ function handlers.deconstruction(data)
     local player = game.get_player(data.player_index)
     if not (player and player.valid) then
         return
+    end
+    if not player.character then
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
     end
 
     if not (entity and entity.valid and entity.to_be_deconstructed()) then
@@ -561,13 +583,17 @@ function handlers.build_entity_ghost(data)
     if not (player and player.valid) then
         return
     end
+    if not player.character then
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
+    end
 
     if not (ghost.valid and data.entity.ghost_name == data.entity_name) then
         return refund(player, data.item_stack, data.cheat)
     end
 
     local item_stacks = get_all_items_on_ground(ghost)
-    if not player.surface.can_place_entity { name = ghost.ghost_name, position = ghost.position, direction = ghost.direction, force = ghost.force } then
+    if not ghost.surface.can_place_entity { name = ghost.ghost_name, position = ghost.position, direction = ghost.direction, force = ghost.force } then
         return refund(player, data.item_stack, data.cheat)
     end
 
@@ -603,6 +629,10 @@ function handlers.build_tile_ghost(data)
     local position = data.position
     if not (player and player.valid) then
         return
+    end
+    if not player.character then
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
     end
 
     if not ghost.valid then
@@ -640,6 +670,10 @@ function handlers.upgrade_ghost(data)
     if not (player and player.valid) then
         return
     end
+    if not player.character then
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
+    end
 
     if not ghost.valid then
         return refund(player, data.item_stack, data.cheat)
@@ -672,6 +706,10 @@ function handlers.item_requests(data)
     local target = proxy.valid and proxy.proxy_target ---@type LuaEntity
     if not (player and player.valid) then
         return
+    end
+    if not player.character then
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
     end
 
     if not (proxy.valid and target and target.valid) then
@@ -741,7 +779,11 @@ local function plan_deconstruct(ctx, entity)
     if not entity.to_be_deconstructed() then
         return
     end
+    -- The search is not limited by force, so skip what other players' forces marked.
     local player = ctx.player
+    if entity.force ~= player.force and entity.force.name ~= 'neutral' then
+        return
+    end
     if entity.type == 'cliff' then
         if not player.force.technologies['nanobots-cliff'].researched then
             return
@@ -773,7 +815,7 @@ local function plan_upgrade(ctx, entity)
     if not (prototype and (prototype.name ~= entity.name or quality ~= entity.quality.name)) then
         return
     end
-    local item_stack = table_find(prototype.items_to_place_this, _find_item, player, false, quality)
+    local item_stack = table_find(prototype.items_to_place_this or {}, _find_item, player, false, quality)
     local place_item = item_stack and get_items_from_inv(player, with_quality(item_stack, quality), player.cheat_mode)
     if place_item then
         local job = new_job(ctx, entity)
@@ -795,7 +837,7 @@ local function plan_ghost(ctx, ghost)
     local proto = ghost.ghost_prototype
     -- Ghosts are revived at their own quality, so use an item of that quality. Tiles have no quality.
     local quality = is_entity_ghost and ghost.quality.name or 'normal'
-    local item_stack = table_find(proto.items_to_place_this, _find_item, player, false, quality)
+    local item_stack = table_find(proto.items_to_place_this or {}, _find_item, player, false, quality)
     if not item_stack then
         return
     end

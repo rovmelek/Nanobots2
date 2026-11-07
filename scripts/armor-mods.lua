@@ -135,7 +135,7 @@ local function mark_items(player, item_equip, items, num_items, num_item_chips, 
         local item_chip = items and item_equip[num_item_chips]
         while num_items > 0 and item_chip and item_chip.energy >= 50 do
             local item = items[num_items]
-            if item and not item.to_be_deconstructed(player.force) then
+            if item and not item.to_be_deconstructed() then
                 item.order_deconstruction(player.force)
                 bot_counter(-1)
                 item_chip.energy = item_chip.energy - 50

@@ -59,7 +59,6 @@ local equipment_chip =
         range = 0,
         ammo_type = {
             type = 'projectile',
-            category = 'electric',
             energy_consumption = '500W',
             action = {
                 {

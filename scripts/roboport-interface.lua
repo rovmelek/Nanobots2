@@ -96,7 +96,7 @@ handlers.mark_items_or_trees =
 
             for _, item in pairs(surface.find_entities_filtered(filter)) do
                 if available_bots > 0 and (limit < 0) then
-                    if not item.to_be_deconstructed(force) then
+                    if not item.to_be_deconstructed() then
                         item.order_deconstruction(force)
                         available_bots = available_bots - 1
                         limit = limit + 1
@@ -132,7 +132,7 @@ handlers.deconstruct_finished_miners = function(data)
             local surface, force, position = get_entity_info(data.logistic_cell.owner)
             local filter = {area = Position.expand_to_area(position, data.logistic_cell.construction_radius), type = data.find_type or 'error', force = force}
             for _, miner in pairs(surface.find_entities_filtered(filter)) do
-                if not miner.to_be_deconstructed(force) and miner.minable and not miner.has_flag('not-deconstructable') and not has_resources(miner) then
+                if not miner.to_be_deconstructed() and miner.minable and not miner.has_flag('not-deconstructable') and not has_resources(miner) then
                     miner.order_deconstruction(force)
                 end
             end
@@ -220,7 +220,7 @@ Event.register(
 
 --Build the interface, after built check the area around it for interface components to revive or create.
 local function build_roboport_interface(event)
-    local interface = event.created_entity or event.entity
+    local interface = event.entity or event.destination
     if interface and interface.name == 'roboport-interface-main' then
         local pos, force = interface.position, interface.force
         local cc, ra

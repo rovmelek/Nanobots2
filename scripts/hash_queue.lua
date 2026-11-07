@@ -1,4 +1,5 @@
 local table = require('lib/stdlib').table
+local config = require('config')
 
 local function NtoZ_c(x, y)
     return (x >= 0 and x or (-0.5 - x)), (y >= 0 and y or (-0.5 - y))
@@ -112,18 +113,24 @@ function Queue.execute(t, event)
         t._count = t._count and (t._count - 1) or count_ticks(t)
         local handlers = getmetatable(t).handlers
         for _, data in ipairs(jobs) do
-            local index = data.hash
-            local handler = handlers[data.action]
-            if handler then
-                handler(data)
-            else
-                log('Nanobots2: queued action has no handler and was skipped: ' .. tostring(data.action))
-            end
-            local hashed = t._hash[index]
+            -- Free the entity's hash first, so a job that fails cannot leave it blocked.
+            local hashed = t._hash[data.hash]
             if hashed then
                 hashed[data.action] = nil
                 if next(hashed) == nil then
-                    t._hash[index] = nil
+                    t._hash[data.hash] = nil
+                end
+            end
+            local handler = handlers[data.action]
+            if not handler then
+                log('Nanobots2: queued action has no handler and was skipped: ' .. tostring(data.action))
+            elseif config.DEBUG then
+                handler(data)
+            else
+                -- One failing job must not strand the rest of the tick, DEBUG builds still stop on the error.
+                local ok, err = pcall(handler, data)
+                if not ok then
+                    log('Nanobots2: ' .. tostring(data.action) .. ' failed: ' .. tostring(err))
                 end
             end
         end
