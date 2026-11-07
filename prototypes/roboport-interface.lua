@@ -120,6 +120,7 @@ ri_radar.pictures = Data.Sprites.empty_pictures()
 ri_radar.integration_patch = nil
 ri_radar.circuit_connector = nil
 ri_radar.connects_to_other_radars = false
+ri_radar.circuit_wire_max_distance = 0
 ri_radar.hidden = true
 ri_radar.max_distance_of_sector_revealed = 0
 ri_radar.max_distance_of_nearby_sector_revealed = 1

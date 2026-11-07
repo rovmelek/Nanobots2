@@ -232,6 +232,20 @@ local function refund(player, item_stack, cheat)
     end
 end
 
+--- Drop a job's items on the ground where the job was, for a player that has no character to insert into.
+--- @param data Nanobots.data
+local function spill_job_items(data)
+    local stack = data.item_stack
+    local surface = data.surface
+    if stack and not data.cheat and surface and surface.valid then
+        surface.spill_item_stack {
+            position = data.position,
+            stack = { name = stack.name, count = stack.count, health = stack.health or 1, quality = quality_name(stack.quality) },
+            enable_looted = true
+        }
+    end
+end
+
 --- Attempt to insert an arrary of items stacks into an entity
 --- @param entity LuaEntity
 --- @param item_stacks ItemStackDefinition|ItemStackDefinition[]
@@ -510,8 +524,8 @@ function handlers.cliff_deconstruction(data)
         return
     end
     if not player.character then
-        -- The player died or disconnected while the job waited, hand the items back.
-        return refund(player, data.item_stack, data.cheat)
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
     end
 
     if not (entity and entity.valid and entity.to_be_deconstructed()) then
@@ -533,8 +547,8 @@ function handlers.deconstruction(data)
         return
     end
     if not player.character then
-        -- The player died or disconnected while the job waited, hand the items back.
-        return refund(player, data.item_stack, data.cheat)
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
     end
 
     if not (entity and entity.valid and entity.to_be_deconstructed()) then
@@ -570,8 +584,8 @@ function handlers.build_entity_ghost(data)
         return
     end
     if not player.character then
-        -- The player died or disconnected while the job waited, hand the items back.
-        return refund(player, data.item_stack, data.cheat)
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
     end
 
     if not (ghost.valid and data.entity.ghost_name == data.entity_name) then
@@ -617,8 +631,8 @@ function handlers.build_tile_ghost(data)
         return
     end
     if not player.character then
-        -- The player died or disconnected while the job waited, hand the items back.
-        return refund(player, data.item_stack, data.cheat)
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
     end
 
     if not ghost.valid then
@@ -657,8 +671,8 @@ function handlers.upgrade_ghost(data)
         return
     end
     if not player.character then
-        -- The player died or disconnected while the job waited, hand the items back.
-        return refund(player, data.item_stack, data.cheat)
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
     end
 
     if not ghost.valid then
@@ -694,8 +708,8 @@ function handlers.item_requests(data)
         return
     end
     if not player.character then
-        -- The player died or disconnected while the job waited, hand the items back.
-        return refund(player, data.item_stack, data.cheat)
+        -- The player died or disconnected while the job waited, there is no inventory to hand the items back to.
+        return spill_job_items(data)
     end
 
     if not (proxy.valid and target and target.valid) then
