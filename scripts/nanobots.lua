@@ -22,8 +22,16 @@ local inv_list = unique {
     defines.inventory.character_vehicle, defines.inventory.car_trunk, defines.inventory.cargo_wagon
 }
 
-local moveable_types = { train = true, car = true, spidertron = true } ---@type { [string]: true }
-local blockable_types = {['straight-rail'] = true, ['curved-rail'] = true} ---@type { [string]: true }
+local moveable_types = {
+    car = true, ['spider-vehicle'] = true,
+    locomotive = true, ['cargo-wagon'] = true, ['fluid-wagon'] = true, ['artillery-wagon'] = true
+} ---@type { [string]: true }
+local blockable_types = {
+    ['straight-rail'] = true, ['half-diagonal-rail'] = true, ['curved-rail-a'] = true, ['curved-rail-b'] = true,
+    ['elevated-straight-rail'] = true, ['elevated-half-diagonal-rail'] = true,
+    ['elevated-curved-rail-a'] = true, ['elevated-curved-rail-b'] = true,
+    ['legacy-straight-rail'] = true, ['legacy-curved-rail'] = true
+} ---@type { [string]: true }
 
 ---@type ItemStackDefinition[]
 local explosives = {
@@ -125,7 +133,9 @@ local function nano_repairable_entity(entity)
     if moveable_types[entity.type] and entity.speed > 0 then
         return false
     end
-    return table_size(entity.prototype.collision_mask) > 0
+    -- 2.x collision masks are {layers = {...}, ...}
+    local mask = entity.prototype.collision_mask
+    return mask ~= nil and table_size(mask.layers or {}) > 0
 end
 
 --- Get the gun, ammo and ammo name for the named gun: will return nil for all returns if there is no ammo for the gun.
@@ -280,7 +290,11 @@ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
                 local removed = math.min(stack.count, count)
                 new_item_stack.count = new_item_stack.count + removed
                 new_item_stack.health = new_item_stack.health * stack.health
-                stack.count = stack.count - count
+                if removed >= stack.count then
+                    stack.clear()
+                else
+                    stack.count = stack.count - removed
+                end
             end
         end
         if new_item_stack.count == item_stack.count then
@@ -557,7 +571,7 @@ function Queue.upgrade_direction(data)
         return
     end
 
-    if not ghost.valid and not ghost.to_be_upgraded() then
+    if not (ghost.valid and ghost.to_be_upgraded()) then
         return
     end
 
