@@ -14,7 +14,7 @@ trap 'rm -rf "$tmp"' EXIT
 mkdir "$tmp/$name"
 # Tracked files only, minus things that are not part of the mod.
 git -C "$root" ls-files -z \
-  | grep -zvE '^(\.pdn/|\.github/|tools/|docs/|\.gitignore$|\.mailmap$|\.luacheckrc$|\.luarc\.json$|stylua\.toml$|CONTRIBUTING\.md$)' \
+  | grep -zvE '^(\.pdn/|\.github/|tools/|docs/|\.gitignore$|\.mailmap$|\.luacheckrc$|\.luarc\.json$|stylua\.toml$|\.styluaignore$|CONTRIBUTING\.md$)' \
   | (cd "$root" && xargs -0 -I{} cp --parents {} "$tmp/$name")
 
 rm -f "$out/$name.zip"

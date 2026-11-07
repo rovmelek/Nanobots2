@@ -1,11 +1,19 @@
-local Interface = require('lib/stdlib').Interface
-local _ = require('lib/stdlib').string -- loads string:split
+local Interface = require('interface')
+
+--- Split on spaces, empty pieces are dropped.
+local function split(text)
+    local words = {}
+    for word in text:gmatch('[^ ]+') do
+        words[#words + 1] = word
+    end
+    return words
+end
 
 local function commands(event)
     -- player_index is nil for the server console and RCON, which are always allowed.
     local player = event.player_index and game.get_player(event.player_index)
     if not event.player_index or (player and player.admin) then
-        local params = event.parameter and event.parameter:split(' ') or {}
+        local params = event.parameter and split(event.parameter) or {}
         if params[1] == 'reset' then
             if params[2] == 'mod' then
                 Interface.reset_mod(true)

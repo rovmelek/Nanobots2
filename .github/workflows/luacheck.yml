@@ -19,3 +19,5 @@ jobs:
         run: luarocks install luacheck 1.2.0
       - name: Lint
         run: luacheck .
+      - name: Offline harness
+        run: lua tools/harness/run.lua

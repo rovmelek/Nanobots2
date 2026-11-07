@@ -26,8 +26,22 @@ read_globals = {
     "game", "script", "remote", "commands", "settings", "rcon", "rendering",
     "helpers", "prototypes", "defines", "log", "localised_print", "table_size",
     "serpent", "bit32",
-    -- Added by stdlib2
-    "prequire",
     -- Data stage
     "util", "mods", "feature_flags",
+}
+
+-- lib/flib holds upstream flib files kept verbatim (see lib/flib/PROVENANCE.md): ignore its argument shadowing
+-- (W412, W432), and table.deepcopy, which core's util adds to table in the data stage.
+files["lib/flib/"] = {
+    ignore = {"412", "432"},
+    read_globals = {table = {fields = {"deepcopy"}}},
+}
+
+-- The offline harness (tools/harness) defines stubs of the Factorio API.
+files["tools/harness/"] = {
+    globals = {
+        "script", "game", "defines", "settings", "prototypes", "helpers", "remote", "commands", "log", "serpent",
+        "table_size", "mods", "data", "storage", "rendering", "rcon", "localised_print",
+        table = {fields = {"deepcopy"}},
+    },
 }

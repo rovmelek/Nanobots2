@@ -1,12 +1,11 @@
-local Data = require('lib/stdlib-data').Data
+local flib_data_util = require('__Nanobots2__.lib.flib.data-util')
 
 local function make_shortcut(chip)
     if mods['PickerInventoryTools'] then
-        chip:copy('picker-disabled-' .. chip.name):set_fields {
-            localised_name = {'nano-disabled-equipment.disabled', chip.localised_name or {'equipment-name.' .. chip.name}}
-        }
+        local disabled = flib_data_util.copy_prototype(chip, 'picker-disabled-' .. chip.name)
+        disabled.localised_name = {'nano-disabled-equipment.disabled', chip.localised_name or {'equipment-name.' .. chip.name}}
 
-        Data {
+        data:extend {disabled, {
             type = 'shortcut',
             name = 'toggle-' .. chip.name,
             order = 'c[toggles]-z[' .. chip.name .. ']',
@@ -20,7 +19,7 @@ local function make_shortcut(chip)
             icon_size = 64,
             small_icon = chip.sprite.filename,
             small_icon_size = 64
-        }
+        }}
     end
 end
 
