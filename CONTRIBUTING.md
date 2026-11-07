@@ -4,7 +4,7 @@
 
 - **Luacheck** is the CI check. Run `luacheck .` before pushing. The config is `.luacheckrc`, with the Factorio 2.x globals (`storage`, `prototypes`, `helpers`).
 - **StyLua** formats the code, config in `stylua.toml`. The existing files are not fully formatted yet, so format only the files you are changing, to keep diffs small.
-- **LuaLS** gives type checking in the editor. Install the Factorio Modding Toolkit (FMTK) in VS Code and run its `Factorio: Set Mod Version` command for 2.1, it fills in the API definitions the `.luarc.json` here relies on. Annotate new functions with `---@param` and `---@return`, the queue job class is `Nanobots.data`.
+- **LuaLS** gives type checking in the editor. Install the Factorio Modding Toolkit (FMTK) in VS Code and select Factorio 2.1 in its version picker. FMTK supplies the API definitions, `.luarc.json` only holds the project settings. Annotate new functions with `---@param` and `---@return`, the queue job class is `Nanobots.data`.
 
 ## Code layout
 
