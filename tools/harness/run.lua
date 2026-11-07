@@ -281,7 +281,14 @@ local function run_control_stage()
     -- Player and force events.
     local events = defines.events
     players[2] = make_player(2)
+    players[4] = make_player(4) -- exists, but its creation is never announced: the event must only add player 2
+    storage.players[1].ranges.marker = true
     rec.events[events.on_player_created]({name = events.on_player_created, player_index = 2})
+    check_equal(storage.players[4], nil, 'player created: only the player of the event gets data')
+    check(storage.players[1].ranges.marker, 'player created: existing data is kept')
+    players[4] = nil
+    rec.events[events.on_player_created]({name = events.on_player_created, player_index = 1})
+    check(storage.players[1].ranges.marker, 'player created again: existing data is not overwritten')
     check(storage.players[2] and storage.players[2].name == 'player2', 'player created: data added')
     check(storage.players[2].ranges ~= storage.players[1].ranges, 'player created: defaults are deep copies')
     players[2].force = {name = 'enemy'}
@@ -295,9 +302,18 @@ local function run_control_stage()
     check(late and late.index == 3 and type(late.ranges) == 'table', 'player get: data of a player without data is created')
     players[3] = nil
     storage.players[3] = nil
-    local new_force = {name = 'rebels', valid = true}
+    -- A real LuaForce is userdata, make the stub one too.
+    local new_force = io.tmpfile()
+    debug.setmetatable(new_force, {__index = {name = 'rebels', valid = true}})
     game.forces.rebels = new_force
+    game.forces.ghosts = {name = 'ghosts', valid = true} -- exists, but its creation is never announced
+    storage.forces.player.marker = true
     rec.events[events.on_force_created]({name = events.on_force_created, force = new_force})
+    check_equal(storage.forces.ghosts, nil, 'force created: only the force of the event gets data')
+    check(storage.forces.player.marker, 'force created: existing data is kept')
+    game.forces.ghosts = nil
+    rec.events[events.on_force_created]({name = events.on_force_created, force = 'player'})
+    check(storage.forces.player.marker, 'force created again: existing data is not overwritten')
     check(deep_equal(storage.forces.rebels, {index = 'rebels', name = 'rebels'}), 'force created: data added')
     rec.events[events.on_forces_merged]({name = events.on_forces_merged, source_name = 'rebels'})
     check_equal(storage.forces.rebels, nil, 'forces merged: data removed')
@@ -416,6 +432,14 @@ local function run_event_checks()
     Event.register(id, function() ran = true end)
     Event.dispatch({name = id, entity = {__self = true, valid = false}})
     check(not ran, 'event: an invalid object stops the handlers')
+
+    -- The check runs before every handler: a handler that invalidates an object stops the ones after it.
+    local later_ran = false
+    local invalidating = Event.generate_event_name('harness_invalidating')
+    Event.register(invalidating, function(event) event.entity.valid = false end)
+    Event.register(invalidating, function() later_ran = true end)
+    Event.dispatch({name = invalidating, entity = {__self = true, valid = true}})
+    check(not later_ran, 'event: validity is checked again before each handler')
 
     Event.set_protected_mode(true)
     Event.register(id, function() error({}) end)
@@ -565,13 +589,24 @@ local function run_data_stage_checks()
     check(ingredient(raw, 'gun-nano-emitter', 'electronic-circuit') == nil, 'bob: the old ingredient is gone')
     entry = ingredient(raw, 'roboport-interface', 'bob-logistic-zone-expander')
     check(entry and entry.amount == 1, 'bob: the roboport is replaced when the startup setting is on')
-    check(ingredient(raw, 'equipment-bot-chip-items', 'bob-robot-brain') ~= nil, 'bob: robot brain added')
-    check(ingredient(raw, 'equipment-bot-chip-nanointerface', 'gun-nano-emitter') ~= nil, 'bob: the nano gun is an ingredient of the interface chip')
+    entry = ingredient(raw, 'equipment-bot-chip-items', 'bob-robot-brain')
+    check(entry and entry.type == 'item' and entry.amount == 1, 'bob: robot brain added with type and amount')
+    entry = ingredient(raw, 'equipment-bot-chip-nanointerface', 'gun-nano-emitter')
+    check(entry and entry.type == 'item' and entry.amount == 1, 'bob: the nano gun is an ingredient of the interface chip')
     check_equal(#raw.recipe['equipment-bot-chip-launcher'].ingredients, 2, 'bob: a missing item is skipped')
     check(log_index('Ingredient not found: bob-robot-brain-combat') ~= nil, 'bob: the skip is logged')
     local disabled = raw['active-defense-equipment']['picker-disabled-equipment-bot-chip-items']
     check(disabled and disabled.name == 'picker-disabled-equipment-bot-chip-items' and disabled.localised_name, 'picker: disabled copy exists')
     check(raw.shortcut['toggle-equipment-bot-chip-items'] ~= nil, 'picker: shortcut exists')
+
+    -- add_unlock on a recipe that starts enabled.
+    local Recipe = require('__Nanobots2__.lib.stdlib2.recipe')
+    data.raw.recipe['unlock-test'] = {type = 'recipe', name = 'unlock-test', enabled = true}
+    data.raw.technology['unlock-tech'] = {type = 'technology', name = 'unlock-tech'}
+    Recipe.add_unlock('unlock-test', 'unlock-tech')
+    check_equal(data.raw.recipe['unlock-test'].enabled, false, 'recipe: add_unlock disables the recipe')
+    local effect = data.raw.technology['unlock-tech'].effects and data.raw.technology['unlock-tech'].effects[1]
+    check(effect and effect.type == 'unlock-recipe' and effect.recipe == 'unlock-test', 'recipe: add_unlock adds the effect')
 
     -- Without the setting the roboport stays.
     raw = run_data_stage({mods = {boblibrary = true}, items = {['bob-basic-circuit-board'] = true, ['bob-logistic-zone-expander'] = true}})
