@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Build Nanobots2_<version>.zip from the files git tracks, with the mod folder inside the zip as Factorio expects.
+# Packages the files git tracks as they are on disk, so commit or stash first for a clean release.
 # Usage: tools/package.sh [output-dir]   (default: current directory)
 set -euo pipefail
 
@@ -16,5 +17,6 @@ git -C "$root" ls-files -z \
   | grep -zvE '^(\.pdn/|\.github/|tools/|docs/|\.gitignore$|\.mailmap$|\.luacheckrc$|\.luarc\.json$|stylua\.toml$|CONTRIBUTING\.md$)' \
   | (cd "$root" && xargs -0 -I{} cp --parents {} "$tmp/$name")
 
+rm -f "$out/$name.zip"
 (cd "$tmp" && zip -qr "$out/$name.zip" "$name")
 echo "$out/$name.zip"
