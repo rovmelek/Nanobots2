@@ -26,12 +26,6 @@ Data {
 }
 
 --Main recipe.
-local ingredients = {
-    {type = 'item', name = 'constant-combinator', amount = 1},
-    {type = 'item', name = 'radar', amount = 1},
-    {type = 'item', name = 'roboport', amount = 1}
-}
-
 Recipe {
     type = 'recipe',
     name = 'roboport-interface',

@@ -1,4 +1,4 @@
-local Event = require('__stdlib2__/stdlib/event/event').set_protected_mode(true)
+local Event = require('__stdlib2__/stdlib/event/event') -- protected mode is set in control.lua
 local Area = require('__stdlib2__/stdlib/area/area')
 local Position = require('__stdlib2__/stdlib/area/position')
 local table = require('__stdlib2__/stdlib/utils/table')

@@ -1,17 +1,21 @@
+name: Luacheck
+
 on:
   push:
-    branches:
-    - master
+    branches: [master]
   pull_request:
-    branches:
-    - master
-name: Luacheck
+    branches: [master]
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
-      - name: lint
-        uses: Roang-zero1/factorio-mod-luacheck@master
+      - uses: actions/checkout@v4
+      - uses: leafo/gh-actions-lua@v11
         with:
-          luacheckrc_url: https://raw.githubusercontent.com/Nexela/Factorio-luacheckrc/master/.luacheckrc
+          luaVersion: "5.2"
+      - uses: leafo/gh-actions-luarocks@v5
+      - name: Install luacheck
+        run: luarocks install luacheck 1.2.0
+      - name: Lint
+        run: luacheck .
