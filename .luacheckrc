@@ -11,7 +11,8 @@ ignore = {
     "631",     -- line is too long
 }
 
-exclude_files = {".git", ".pdn", "graphics", "sounds", "locale"}
+-- .lua, .luarocks and .install are created in the workspace by the CI Lua setup actions.
+exclude_files = {".git", ".pdn", ".lua", ".luarocks", ".install", "graphics", "sounds", "locale"}
 
 -- Globals the mod writes to.
 globals = {
