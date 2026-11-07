@@ -13,7 +13,7 @@ local params_to_check = {
     ['nano-signal-chop-trees'] = {
         action = 'mark_items_or_trees',
         find_type = 'tree',
-        item_name = 'raw-wood'
+        item_name = 'wood'
     },
     ['nano-signal-item-on-ground'] = {
         action = 'mark_items_or_trees',
@@ -35,7 +35,7 @@ local params_to_check = {
     ['nano-signal-catch-fish'] = {
         action = 'mark_items_or_trees',
         find_type = 'fish',
-        item_name = 'fish'
+        item_name = 'raw-fish'
     }
 }
 
@@ -63,11 +63,17 @@ parameters ={
     },
 }
 --]]
-local function get_parameters(params)
+-- Read the signals set in the constant combinator. Factorio 2.x stores them in logistic sections.
+local function get_parameters(behaviour)
     local parameters = {}
-    for _, param in pairs(params) do
-        if param.signal.name then
-            parameters[param.signal.name] = param.count
+    for _, section in pairs(behaviour.sections) do
+        if section.active then
+            for _, filter in pairs(section.filters) do
+                local signal = filter.value
+                if signal and signal.name then
+                    parameters[signal.name] = (parameters[signal.name] or 0) + (filter.min or 0)
+                end
+            end
         end
     end
     return parameters
@@ -95,7 +101,7 @@ Queue.mark_items_or_trees =
             local available_bots = floor(data.logistic_cell.logistic_network.available_construction_robots - (data.logistic_cell.logistic_network.all_construction_robots * (config['nanobots-free-bots-per'].value / 100)))
             local limit = -99999999999
             if data.value < 0 and data.item_name then
-                limit = (data.logistic_cell.logistic_network.get_contents()[data.item_name] or 0) + data.value
+                limit = data.logistic_cell.logistic_network.get_item_count(data.item_name) + data.value
             end
 
             for _, item in pairs(surface.find_entities_filtered(filter)) do
@@ -160,7 +166,7 @@ local function run_interface(interface)
         local logistic_network, logistic_cell = find_network_and_cell(interface)
         if logistic_network and logistic_network.available_construction_robots > logistic_network.all_construction_robots * (settings['global']['nanobots-free-bots-per'].value / 100) then
             local tick_spacing = settings['global']['nanobots-cell-queue-rate'].value
-            local parameters = get_parameters(behaviour.parameters)
+            local parameters = get_parameters(behaviour)
             --game.print(serpent.block(parameters, {comment=false, sparse=false}))
             -- If the closest roboport signal is present and > 0 then just run on the attached cell
             local just_cell = (parameters['nano-signal-closest-roboport'] or 0) > 0 and logistic_cell and {logistic_cell} or nil

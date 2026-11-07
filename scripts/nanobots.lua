@@ -82,7 +82,7 @@ end
 local function has_powered_equipment(character, eq_name)
     local grid = character.grid
     if grid then
-        eq = grid.find(eq_name)
+        local eq = grid.find(eq_name)
         return eq and eq.energy > 0
     end
 end
@@ -179,7 +179,7 @@ local function insert_or_spill_items(entity, item_stacks, is_return_cheat)
             if prototypes.item[name] and not prototypes.item[name].hidden then
                 local inserted = entity.insert({ name = name, count = count, health = health })
                 if inserted ~= count then
-                    entity.surface.spill_item_stack(entity.position, { name = name, count = count - inserted, health = health }, true)
+                    entity.surface.spill_item_stack { position = entity.position, stack = { name = name, count = count - inserted, health = health }, enable_looted = true }
                 end
             end
         end
@@ -326,24 +326,75 @@ local function get_ammo_radius(player, nano_ammo)
     return custom_radius <= max_radius and custom_radius or max_radius
 end
 
+--- Remove delivered items from an item request proxy's insert plan, destroy the proxy when nothing is left.
+--- In Factorio 2.x `item_requests` is read only, the requests are stored in `insert_plan`.
+--- @param proxy LuaEntity the item request proxy
+--- @param name string the item that was delivered
+--- @param amount number how many were delivered
+local function reduce_insert_plan(proxy, name, amount)
+    if not (proxy and proxy.valid) then
+        return
+    end
+    local new_plan = {}
+    for _, entry in pairs(proxy.insert_plan) do
+        local items = entry.items or {}
+        if amount > 0 and entry.id.name == name then
+            local kept = {}
+            for _, pos in pairs(items.in_inventory or {}) do
+                local count = pos.count or 1
+                if amount >= count then
+                    amount = amount - count
+                elseif amount > 0 then
+                    pos.count = count - amount
+                    amount = 0
+                    kept[#kept + 1] = pos
+                else
+                    kept[#kept + 1] = pos
+                end
+            end
+            items.in_inventory = kept[1] and kept or nil
+            if amount > 0 and (items.grid_count or 0) > 0 then
+                local used = math.min(amount, items.grid_count)
+                items.grid_count = items.grid_count - used
+                amount = amount - used
+            end
+            entry.items = items
+            if items.in_inventory or (items.grid_count or 0) > 0 then
+                new_plan[#new_plan + 1] = entry
+            end
+        else
+            new_plan[#new_plan + 1] = entry
+        end
+    end
+    if new_plan[1] then
+        proxy.insert_plan = new_plan
+    else
+        proxy.destroy()
+    end
+end
+
 --- Attempt to satisfy module requests from player inventory
---- @param requests LuaEntity the item request proxy to get requests from
+--- @param proxy LuaEntity the item request proxy to get requests from
 --- @param entity LuaEntity the entity to satisfy requests for
 --- @param player LuaEntity the entity to get modules from
-local function satisfy_requests(requests, entity, player)
+local function satisfy_requests(proxy, entity, player)
     local pinv = player.get_main_inventory()
-    local new_requests = {}
-    for name, count in pairs(requests.item_requests) do
+    for _, request in pairs(proxy.item_requests) do
+        if not proxy.valid then
+            return
+        end
+        local name, count = request.name, request.count
         if count > 0 and entity.can_insert(name) then
             local removed = player.cheat_mode and count or pinv.remove({ name = name, count = count })
             local inserted = removed > 0 and entity.insert({ name = name, count = removed }) or 0
-            local balance = count - inserted
-            new_requests[name] = balance > 0 and balance or nil
-        else
-            new_requests[name] = count
+            if removed > inserted and not player.cheat_mode then
+                pinv.insert({ name = name, count = removed - inserted })
+            end
+            if inserted > 0 then
+                reduce_insert_plan(proxy, name, inserted)
+            end
         end
     end
-    requests.item_requests = new_requests
 end
 
 --- Create a projectile from source to target
@@ -438,7 +489,7 @@ function Queue.build_entity_ghost(data)
         return insert_or_spill_items(player, { data.item_stack }, player.cheat_mode)
     end
 
-    local revived, entity, requests = ghost.revive { return_item_request_proxy = true, raise_revive = true }
+    local revived, entity, requests = ghost.revive { raise_revive = true }
 
     if not revived then
         return insert_or_spill_items(player, { data.item_stack }, player.cheat_mode)
@@ -486,7 +537,7 @@ function Queue.build_tile_ghost(data)
     local item_ptype = data.item_stack and prototypes.item[data.item_stack.name]
     local tile_ptype = item_ptype and item_ptype.place_as_tile_result.result
     create_projectile('nano-projectile-constructors', surface, force, player.character.position, position)
-    Position.floored(position)
+    position = Position.floored({ x = position.x, y = position.y })
     -- if the tile was mined, we need to manually place the tile.
     -- checking if the ghost was revived is likely unnecessary but felt safer.
     if tile_was_mined and not ghost_was_revived then
@@ -568,7 +619,6 @@ function Queue.item_requests(data)
 
     create_projectile('nano-projectile-constructors', proxy.surface, proxy.force, player.character.position, proxy.position)
     local item_stack = data.item_stack
-    local requests = proxy.item_requests
     local inserted = target.insert(item_stack)
     item_stack.count = item_stack.count - inserted
 
@@ -576,17 +626,8 @@ function Queue.item_requests(data)
         insert_or_spill_items(player, { item_stack })
     end
 
-    requests[item_stack.name] = requests[item_stack.name] - inserted
-    for k, count in pairs(requests) do
-        if count == 0 then
-            requests[k] = nil
-        end
-    end
-
-    if table_size(requests) > 0 then
-        proxy.item_requests = requests
-    else
-        proxy.destroy()
+    if inserted > 0 then
+        reduce_insert_plan(proxy, item_stack.name, inserted)
     end
 end
 
@@ -648,11 +689,12 @@ local function queue_ghosts_in_range(player, pos, nano_ammo)
                                     ammo_drain(player, nano_ammo, 1)
                                 end
                             elseif upgrade then
-                                local prototype = ghost.get_upgrade_target()
-                                if prototype then
+                                local prototype, quality = ghost.get_upgrade_target()
+                                -- Quality upgrades need items of that quality, leave them to construction robots.
+                                if prototype and not (quality and quality.name ~= ghost.quality.name) then
                                     if prototype.name == ghost.name then
-                                        local dir = ghost.get_upgrade_direction()
-                                        if ghost.direction ~= dir then
+                                        local has_dir, dir = pcall(function() return ghost.get_upgrade_direction() end)
+                                        if has_dir and dir and ghost.direction ~= dir then
                                             data.action = 'upgrade_direction'
                                             data.direction = dir
                                             queue:insert(data, next_tick())
@@ -718,8 +760,8 @@ local function queue_ghosts_in_range(player, pos, nano_ammo)
                                 end -- repair
                             elseif ghost.name == 'item-request-proxy' and cfg.do_proxies then
                                 local items = {}
-                                for item, count in pairs(ghost.item_requests) do
-                                    items[#items + 1] = { name = item, count = count }
+                                for _, request in pairs(ghost.item_requests) do
+                                    items[#items + 1] = { name = request.name, count = request.count }
                                 end
                                 local item_stack = table_find(items, _find_item, player, true)
                                 if item_stack then
