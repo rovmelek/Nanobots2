@@ -672,11 +672,210 @@ function Queue.item_requests(data)
 end
 
 --[[ Nano Emmitter --]]
--- Extension of the tick handler, This functions decide what to do with their
--- assigned robots and insert them into the queue accordingly.
--- TODO: replace table_find entity-match with hashed lookup
--- Nano Constructors
--- Queue the ghosts in range for building, heal stuff needing healed
+-- Extension of the tick handler. Each poll runs a few narrow, engine-filtered scans (marked for deconstruction,
+-- marked for upgrade, ghosts, item request proxies) instead of walking every entity in range, and each scan hands
+-- the entities to a small planner that queues at most one job for that entity.
+-- Only repair has to look at every entity of the force, so it runs on a slower cadence.
+
+--- Run the repair scan once every this many polls of a player.
+local REPAIR_SCAN_EVERY = 3
+
+--- @class Nanobots.scan_context
+--- @field player LuaPlayer
+--- @field force LuaForce
+--- @field ammo LuaItemStack
+--- @field next_tick fun(): number
+--- @field queue_count fun(num?: number): number
+
+--- Start the queue entry for an entity.
+--- @param ctx Nanobots.scan_context
+--- @param entity LuaEntity
+--- @return Nanobots.data
+local function new_job(ctx, entity)
+    ---@type Nanobots.data
+    return {
+        player_index = ctx.player.index,
+        position = entity.position,
+        surface = entity.surface,
+        unit_number = entity.unit_number,
+        entity = entity
+    }
+end
+
+--- Queue the job and pay for it with ammo.
+--- @param ctx Nanobots.scan_context
+--- @param job Nanobots.data
+local function enqueue(ctx, job)
+    queue:insert(job, ctx.next_tick())
+    ammo_drain(ctx.player, ctx.ammo, 1)
+end
+
+--- Entities marked for deconstruction, including cliffs.
+local function plan_deconstruct(ctx, entity)
+    if not entity.to_be_deconstructed() then
+        return
+    end
+    local player = ctx.player
+    if entity.type == 'cliff' then
+        if not player.force.technologies['nanobots-cliff'].researched then
+            return
+        end
+        local item_stack = table_find(explosives, _find_item, player)
+        local explosive = item_stack and get_items_from_inv(player, item_stack, player.cheat_mode)
+        if explosive then
+            local job = new_job(ctx, entity)
+            job.item_stack = explosive
+            job.action = 'cliff_deconstruction'
+            enqueue(ctx, job)
+        end
+    elseif entity.minable then
+        local job = new_job(ctx, entity)
+        job.action = 'deconstruction'
+        job.deconstructors = true
+        enqueue(ctx, job)
+    end
+end
+
+--- Entities marked for upgrade. In 2.x the target can change the entity, its quality or both.
+local function plan_upgrade(ctx, entity)
+    if entity.to_be_deconstructed() then
+        return
+    end
+    local player = ctx.player
+    local prototype, target_quality = entity.get_upgrade_target()
+    local quality = target_quality and target_quality.name or entity.quality.name
+    if not (prototype and (prototype.name ~= entity.name or quality ~= entity.quality.name)) then
+        return
+    end
+    local item_stack = table_find(prototype.items_to_place_this, _find_item, player, false, quality)
+    local place_item = item_stack and get_items_from_inv(player, with_quality(item_stack, quality), player.cheat_mode)
+    if place_item then
+        local job = new_job(ctx, entity)
+        job.action = 'upgrade_ghost'
+        job.entity_name = prototype.name
+        job.quality = quality
+        job.item_stack = place_item
+        enqueue(ctx, job)
+    end
+end
+
+--- Entity ghosts and tile ghosts.
+local function plan_ghost(ctx, ghost)
+    local is_entity_ghost = ghost.name == 'entity-ghost'
+    if not (is_entity_ghost or cfg.build_tiles) then
+        return
+    end
+    local player = ctx.player
+    local proto = ghost.ghost_prototype
+    -- Ghosts are revived at their own quality, so use an item of that quality. Tiles have no quality.
+    local quality = is_entity_ghost and ghost.quality.name or 'normal'
+    local item_stack = table_find(proto.items_to_place_this, _find_item, player, false, quality)
+    if not item_stack then
+        return
+    end
+    item_stack = with_quality(item_stack, quality)
+
+    if is_entity_ghost then
+        local place_item = get_items_from_inv(player, item_stack, player.cheat_mode)
+        if place_item then
+            local job = new_job(ctx, ghost)
+            job.action = 'build_entity_ghost'
+            job.entity_name = proto.name
+            job.item_stack = place_item
+            enqueue(ctx, job)
+        end
+        return
+    end
+
+    -- Don't queue tile ghosts if an entity ghost is on top of them.
+    local blocked = ghost.surface.count_entities_filtered {name = 'entity-ghost', area = Area(ghost.bounding_box):non_zero(), limit = 1}
+    if blocked > 0 or not ghost.surface.get_tile(ghost.position) then
+        return
+    end
+    local place_item = get_items_from_inv(player, item_stack, player.cheat_mode)
+    if place_item then
+        local job = new_job(ctx, ghost)
+        job.item_stack = place_item
+        job.action = 'build_tile_ghost'
+        enqueue(ctx, job)
+    end
+end
+
+--- Damaged entities of the player's force.
+local function plan_repair(ctx, entity)
+    if not nano_repairable_entity(entity) then
+        return
+    end
+    -- Skip if a repair cloud is already working on it.
+    if entity.surface.count_entities_filtered {name = 'nano-cloud-small-repair', position = entity.position} > 0 then
+        return
+    end
+    entity.surface.create_entity {
+        name = 'nano-projectile-repair',
+        position = ctx.player.character.position,
+        force = ctx.force,
+        target = entity.position,
+        speed = 0.5
+    }
+    ctx.queue_count(1)
+    ammo_drain(ctx.player, ctx.ammo, 1)
+end
+
+--- Module and item requests, satisfied from the player's inventory.
+local function plan_proxy(ctx, proxy)
+    local player = ctx.player
+    local items = {}
+    for _, request in pairs(proxy.item_requests) do
+        items[#items + 1] = {name = request.name, count = request.count, quality = quality_name(request.quality)}
+    end
+    local item_stack = table_find(items, _find_item, player, true)
+    local place_item = item_stack and get_items_from_inv(player, item_stack, player.cheat_mode, true)
+    if place_item and place_item.count > 0 then
+        local job = new_job(ctx, proxy)
+        job.action = 'item_requests'
+        job.item_stack = place_item
+        enqueue(ctx, job)
+    end
+end
+
+--- Plan one entity, after the checks every job needs.
+--- @param ctx Nanobots.scan_context
+--- @param entity LuaEntity
+--- @param scan table
+--- @return boolean #false when scanning should stop, the ammo ran out or the queue is full
+local function plan_entity(ctx, entity, scan)
+    if not (ctx.ammo.valid and ctx.ammo.valid_for_read) then
+        return false
+    end
+    if ctx.queue_count() >= cfg.queue_cycle then
+        return false
+    end
+    if queue:get_hash(entity) then
+        return true
+    end
+    -- Marked entities are handled by the deconstruct and upgrade scans only.
+    if scan.skip_marked and (entity.to_be_deconstructed() or entity.to_be_upgraded()) then
+        return true
+    end
+    if cfg.network_limits and not nano_network_check(ctx.player.character, entity) then
+        return true
+    end
+    scan.planner(ctx, entity)
+    return true
+end
+
+--- The scans, in priority order. `filter` is merged with the area, `force` is added when `same_force` is set.
+local scans = {
+    {filter = {to_be_deconstructed = true}, planner = plan_deconstruct},
+    -- Tile proxies are found by type as well, the planner checks the mark itself.
+    {filter = {type = 'deconstructible-tile-proxy'}, planner = plan_deconstruct},
+    {filter = {to_be_upgraded = true}, same_force = true, planner = plan_upgrade},
+    {filter = {type = {'entity-ghost', 'tile-ghost'}}, same_force = true, skip_marked = true, planner = plan_ghost},
+    {filter = {type = 'item-request-proxy'}, same_force = true, skip_marked = true, planner = plan_proxy, enabled = function() return cfg.do_proxies end},
+    {filter = {}, same_force = true, skip_marked = true, planner = plan_repair, every = REPAIR_SCAN_EVERY}
+}
+
+--- Queue the ghosts in range for building, heal stuff needing healed
 --- @param player LuaPlayer
 --- @param pos MapPosition
 --- @param nano_ammo LuaItemStack
@@ -686,142 +885,34 @@ local function queue_ghosts_in_range(player, pos, nano_ammo)
     local _next_nano_tick = (pdata._next_nano_tick and pdata._next_nano_tick < (game.tick + 2000) and pdata._next_nano_tick) or game.tick
     local tick_spacing = max(1, cfg.queue_rate - (queue_speed[force.get_gun_speed_modifier('nano-ammo')] or queue_speed[4]))
     local next_tick, queue_count = queue:next(_next_nano_tick, tick_spacing)
-    local radius = get_ammo_radius(player, nano_ammo)
-    local area = Position.expand_to_area(pos, radius)
+    local area = Position.expand_to_area(pos, get_ammo_radius(player, nano_ammo))
+    local surface = player.surface
 
-    for _, ghost in pairs(player.surface.find_entities(area)) do
-        local same_force = ghost.force == force
-        local deconstruct = ghost.to_be_deconstructed()
-        local upgrade = ghost.to_be_upgraded() and ghost.force == force
+    ---@type Nanobots.scan_context
+    local ctx = {player = player, force = force, ammo = nano_ammo, next_tick = next_tick, queue_count = queue_count}
 
-        if (deconstruct or upgrade or same_force) then
-            if nano_ammo.valid and nano_ammo.valid_for_read then
-                if not cfg.network_limits or nano_network_check(player.character, ghost) then
-                    if queue_count() < cfg.queue_cycle then
-                        if not queue:get_hash(ghost) then
-                            --- @class Nanobots.data
-                            local data = {
-                                player_index = player.index,
-                                ammo = nano_ammo,
-                                position = ghost.position,
-                                surface = ghost.surface,
-                                unit_number = ghost.unit_number,
-                                entity = ghost
-                            }
-                            if deconstruct then
-                                if ghost.type == 'cliff' then
-                                    if player.force.technologies['nanobots-cliff'].researched then
-                                        local item_stack = table_find(explosives, _find_item, player)
-                                        if item_stack then
-                                            local explosive = get_items_from_inv(player, item_stack, player.cheat_mode)
-                                            if explosive then
-                                                data.item_stack = explosive
-                                                data.action = 'cliff_deconstruction'
-                                                queue:insert(data, next_tick())
-                                                ammo_drain(player, nano_ammo, 1)
-                                            end
-                                        end
-                                    end
-                                elseif ghost.minable then
-                                    data.action = 'deconstruction'
-                                    data.deconstructors = true
-                                    queue:insert(data, next_tick())
-                                    ammo_drain(player, nano_ammo, 1)
-                                end
-                            elseif upgrade then
-                                -- 2.x: the target can change the entity, its quality or both (get_upgrade_direction was removed).
-                                local prototype, target_quality = ghost.get_upgrade_target()
-                                local quality = target_quality and target_quality.name or ghost.quality.name
-                                if prototype and (prototype.name ~= ghost.name or quality ~= ghost.quality.name) then
-                                    local item_stack = table_find(prototype.items_to_place_this, _find_item, player, false, quality)
-                                    if item_stack then
-                                        data.action = 'upgrade_ghost'
-                                        local place_item = get_items_from_inv(player, with_quality(item_stack, quality), player.cheat_mode)
-                                        if place_item then
-                                            data.entity_name = prototype.name
-                                            data.quality = quality
-                                            data.item_stack = place_item
-                                            queue:insert(data, next_tick())
-                                            ammo_drain(player, nano_ammo, 1)
-                                        end
-                                    end
-                                end
-                            elseif ghost.name == 'entity-ghost' or (ghost.name == 'tile-ghost' and cfg.build_tiles) then
-                                -- get first available item that places entity from inventory that is not in our hand.
-                                local proto = ghost.ghost_prototype
-                                -- Ghosts are revived at their own quality, so use an item of that quality. Tiles have no quality.
-                                local quality = ghost.name == 'entity-ghost' and ghost.quality.name or 'normal'
-                                local item_stack = table_find(proto.items_to_place_this, _find_item, player, false, quality)
-                                if item_stack then
-                                    item_stack = with_quality(item_stack, quality)
-                                    if ghost.name == 'entity-ghost' then
-                                        local place_item = get_items_from_inv(player, item_stack, player.cheat_mode)
-                                        if place_item then
-                                            data.action = 'build_entity_ghost'
-                                            data.entity_name = proto.name
-                                            data.item_stack = place_item
-                                            queue:insert(data, next_tick())
-                                            ammo_drain(player, nano_ammo, 1)
-                                        end
-                                    elseif ghost.name == 'tile-ghost' then
-                                        -- Don't queue tile ghosts if entity ghost is on top of it.
-                                        if ghost.surface.count_entities_filtered { name = 'entity-ghost', area = Area(ghost.bounding_box):non_zero(), limit = 1 } ==
-                                            0 then
-                                            local tile = ghost.surface.get_tile(ghost.position)
-                                            if tile then
-                                                local place_item = get_items_from_inv(player, item_stack, player.cheat_mode)
-                                                if place_item then
-                                                    data.item_stack = place_item
-                                                    data.action = 'build_tile_ghost'
-                                                    queue:insert(data, next_tick())
-                                                    ammo_drain(player, nano_ammo, 1)
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                            elseif nano_repairable_entity(ghost) then
-                                -- Check if entity needs repair, TODO: Better logic for this?
-                                if ghost.surface.count_entities_filtered { name = 'nano-cloud-small-repair', position = ghost.position } == 0 then
-                                    ghost.surface.create_entity {
-                                        name = 'nano-projectile-repair',
-                                        position = player.character.position,
-                                        force = force,
-                                        target = ghost.position,
-                                        speed = 0.5
-                                    }
-                                    queue_count(1)
-                                    ammo_drain(player, nano_ammo, 1)
-                                end -- repair
-                            elseif ghost.name == 'item-request-proxy' and cfg.do_proxies then
-                                local items = {}
-                                for _, request in pairs(ghost.item_requests) do
-                                    items[#items + 1] = { name = request.name, count = request.count, quality = quality_name(request.quality) }
-                                end
-                                local item_stack = table_find(items, _find_item, player, true)
-                                if item_stack then
-                                    local place_item = get_items_from_inv(player, item_stack, player.cheat_mode, true)
-                                    if place_item and place_item.count > 0 then
-                                        data.action = 'item_requests'
-                                        data.item_stack = place_item
-                                        queue:insert(data, next_tick())
-                                        ammo_drain(player, nano_ammo, 1)
-                                    end
-                                end
-                            end -- deconstruct, build or repair
-                        end -- hash_check()
-                    else
-                        break
-                    end -- queue_count()
-                end -- network check
-            else
-                -- ran out of ammo, break out here
+    pdata._poll_count = (pdata._poll_count or 0) + 1
+    for _, scan in ipairs(scans) do
+        local due = not scan.every or pdata._poll_count % scan.every == 0
+        if due and (not scan.enabled or scan.enabled()) then
+            local filter = {area = area, force = scan.same_force and force or nil}
+            for key, value in pairs(scan.filter) do
+                filter[key] = value
+            end
+            local keep_going = true
+            for _, entity in pairs(surface.find_entities_filtered(filter)) do
+                if not plan_entity(ctx, entity, scan) then
+                    keep_going = false
+                    break
+                end
+            end
+            if not keep_going then
                 break
-            end -- valid ammo
-        end -- not flag not_on_map
-    end -- looping through entities
+            end
+        end
+    end
     pdata._next_nano_tick = next_tick() or game.tick
-end -- function
+end
 
 -- Nano Termites
 -- Kill the trees! Kill them dead

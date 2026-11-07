@@ -26,8 +26,8 @@ end
 function interface.count_queue(queue)
     queue = queue or 'nano_queue'
     if storage[queue] then
-        local a, b = Queue.count(storage[queue])
-        game.print('Queued:' .. a .. ' Hashed:' .. b)
+        local queued = Queue(storage[queue])
+        game.print('Queued:' .. queued:count() .. ' Hashed:' .. queued:hash_count())
     end
 end
 

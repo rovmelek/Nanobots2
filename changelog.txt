@@ -1,4 +1,15 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.5.0
+Date: 2026-11-07
+  Changes:
+    - The nano emitter now scans for marked entities, ghosts and item requests with filtered searches instead of walking every entity in range. Entities marked for deconstruction are queued first, then upgrades, ghosts, requests and repairs.
+    - Repairs are looked for every third poll instead of every poll.
+    - Test builds can set DEBUG in config.lua to stop on script errors instead of hiding them.
+    - Removed the unused tile signal of the roboport interface.
+  Optimisations:
+    - The queue size is kept as a counter instead of being counted on each use.
+    - Queue entries no longer store the ammo stack or the logistic network, and the roboport interface caches its settings.
+---------------------------------------------------------------------------------------------------
 Version: 3.4.2
 Date: 2026-11-07
   Features:

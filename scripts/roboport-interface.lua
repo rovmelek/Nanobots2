@@ -9,6 +9,18 @@ local queue
 
 local floor = math.floor
 
+-- Cached copies of the runtime settings this file reads.
+local cfg
+local function update_settings()
+    local setting = settings['global']
+    cfg = {
+        free_bots_per = setting['nanobots-free-bots-per'].value,
+        cell_queue_rate = setting['nanobots-cell-queue-rate'].value
+    }
+end
+Event.register(defines.events.on_runtime_mod_setting_changed, update_settings)
+update_settings()
+
 local params_to_check = {
     ['nano-signal-chop-trees'] = {
         action = 'mark_items_or_trees',
@@ -94,8 +106,7 @@ Queue.mark_items_or_trees =
                 type = data.find_type,
                 limit = 300
             }
-            local config = settings['global']
-            local available_bots = floor(data.logistic_cell.logistic_network.available_construction_robots - (data.logistic_cell.logistic_network.all_construction_robots * (config['nanobots-free-bots-per'].value / 100)))
+            local available_bots = floor(data.logistic_cell.logistic_network.available_construction_robots - (data.logistic_cell.logistic_network.all_construction_robots * (cfg.free_bots_per / 100)))
             local limit = -99999999999
             if data.value < 0 and data.item_name then
                 limit = data.logistic_cell.logistic_network.get_item_count(data.item_name) + data.value
@@ -166,10 +177,9 @@ local function run_interface(interface)
     local behaviour = interface.get_control_behavior()
     if behaviour and behaviour.enabled then
         local logistic_network, logistic_cell = find_network_and_cell(interface)
-        if logistic_network and logistic_network.available_construction_robots > logistic_network.all_construction_robots * (settings['global']['nanobots-free-bots-per'].value / 100) then
-            local tick_spacing = settings['global']['nanobots-cell-queue-rate'].value
+        if logistic_network and logistic_network.available_construction_robots > logistic_network.all_construction_robots * (cfg.free_bots_per / 100) then
+            local tick_spacing = cfg.cell_queue_rate
             local parameters = get_parameters(behaviour)
-            --game.print(serpent.block(parameters, {comment=false, sparse=false}))
             -- If the closest roboport signal is present and > 0 then just run on the attached cell
             local just_cell = (parameters['nano-signal-closest-roboport'] or 0) > 0 and logistic_cell and {logistic_cell} or nil
             local fdata = storage.forces[logistic_cell.owner.force.name]
@@ -183,7 +193,6 @@ local function run_interface(interface)
                                 position = cell.owner.position,
                                 logistic_cell = cell,
                                 entity = cell.owner,
-                                logistic_network = logistic_network,
                                 name = param_name,
                                 action = param_table.action,
                                 find_type = param_table.find_type,
