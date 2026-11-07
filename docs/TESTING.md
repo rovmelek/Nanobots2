@@ -1,13 +1,13 @@
 # Manual test checklist
 
-Nothing in the 2.x port has automated coverage yet, so run this list in game before a release.
+The offline harness (`lua5.2 tools/harness/run.lua`) checks that the mod loads and that storage and prototypes keep their shape. It cannot run any gameplay, so run this list in game before a release.
 
 ## Setup
 
-1. Set `NANO.DEBUG = true` in `config.lua`. This turns off stdlib protected mode, so any script error stops the game with a stack trace instead of being hidden. Set it back to `false` before releasing.
+1. Set `NANO.DEBUG = true` in `config.lua`. This turns off protected mode, so any script error stops the game with a stack trace instead of being hidden. Set it back to `false` before releasing.
 2. Start a new game with Space Age enabled (quality needs it). Leave `cheat_mode` off for the main pass, because the code takes different paths with it on (items are not consumed or refunded). Optionally run one short pass with it on.
 3. Research `nanobots`, `nano-range-1` to `4`, `nano-speed-1` to `4` and `nanobots-cliff`. Craft the nano emitter and constructor ammo, equip them.
-4. Run `luacheck .` and confirm it is clean.
+4. Run `luacheck .` and `lua5.2 tools/harness/run.lua` and confirm both are clean.
 
 ## Nanobot gun
 
@@ -49,6 +49,14 @@ Build the interface inside a roboport network that has construction bots. Set on
 - [ ] `nano-signal-closest-roboport` limits the work to the attached cell.
 - [ ] A negative value on chop-trees or catch-fish only acts while the network holds fewer than that many wood or raw fish.
 - [ ] The interface can be blueprinted and rebuilt, and its parts die and are removed with it.
+
+## Dependencies and load
+
+- [ ] A new game with only Nanobots2 and the base game (no stdlib2 mod) starts without errors.
+- [ ] With Space Age, and with Bob's mods, the roboport interface, chips and recipes look as in 3.5.3 (the load order can change now that the stdlib2 dependency is gone).
+- [ ] A tile ghost under an entity ghost waits for the entity ghost to be built first.
+- [ ] A mining drill with its resources used up is marked by the `nano-signal-deconstruct-finished-miners` signal, and one with resources left is not.
+- [ ] A 3.5.3 save loads, and its queues and the radius settings of the reprogram pad (`ranges`) are intact.
 
 ## Commands and saves
 

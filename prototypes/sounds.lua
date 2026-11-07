@@ -1,6 +1,4 @@
-local Data = require('lib/stdlib-data').Data
-
-Data{
+data:extend {{
     type = 'sound',
     name = 'nano-sound-build-tiles',
     aggregation = {max_count = 3, remove = true, count_already_playing = true},
@@ -10,4 +8,4 @@ Data{
         {filename = '__base__/sound/walking/grass-3.ogg', volume = 1.0},
         {filename = '__base__/sound/walking/grass-4.ogg', volume = 1.0}
     }
-}
+}}

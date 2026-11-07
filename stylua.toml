@@ -1,4 +1,4 @@
-# StyLua config matching the existing code: 4 spaces, single quotes, call parentheses left as written (Data { ... }).
+# StyLua config matching the existing code: 4 spaces, single quotes, call parentheses left as written (find_entities_filtered { ... }).
 column_width = 140
 line_endings = "Unix"
 indent_type = "Spaces"

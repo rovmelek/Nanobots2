@@ -1,9 +1,9 @@
 -------------------------------------------------------------------------------
 --[[roboport-interface]]
 -------------------------------------------------------------------------------
-local Event = require('lib/stdlib').Event
-local Position = require('lib/stdlib').Position
-local table = require('lib/stdlib').table
+local Event = require('__Nanobots2__.lib.stdlib2.event')
+local flib_array = require('__Nanobots2__.lib.flib.array')
+local Area = require('scripts/area')
 local Queue = require('scripts/hash_queue')
 local events = require('events')
 local queue
@@ -83,7 +83,7 @@ handlers.mark_items_or_trees =
         end
         if not surface.find_nearest_enemy {position = position, max_distance = data.logistic_cell.construction_radius * 1.5 + 40, force = force} then
             local filter = {
-                area = Position.expand_to_area(position, data.logistic_cell.construction_radius),
+                area = Area.around(position, data.logistic_cell.construction_radius),
                 name = data.find_name,
                 type = data.find_type,
                 limit = 300
@@ -118,11 +118,11 @@ local function has_resources(miner)
     if not (has_getter and radius) then
         radius = miner.prototype.mining_drill_radius
     end
-    local filter = {area = Position.expand_to_area(miner.position, radius), type = 'resource'}
+    local filter = {area = Area.around(miner.position, radius), type = 'resource'}
     if miner.mining_target then
         return (miner.mining_target.amount or 0) > 0
     else
-        return table.find(miner.surface.find_entities_filtered(filter), _find)
+        return flib_array.find_if(miner.surface.find_entities_filtered(filter), _find)
     end
 end
 
@@ -130,7 +130,7 @@ handlers.deconstruct_finished_miners = function(data)
     if not script.active_mods['AutoDeconstruct'] then
         if data.logistic_cell.valid and data.logistic_cell.construction_radius > 0 and data.logistic_cell.logistic_network then
             local surface, force, position = get_entity_info(data.logistic_cell.owner)
-            local filter = {area = Position.expand_to_area(position, data.logistic_cell.construction_radius), type = data.find_type or 'error', force = force}
+            local filter = {area = Area.around(position, data.logistic_cell.construction_radius), type = data.find_type or 'error', force = force}
             for _, miner in pairs(surface.find_entities_filtered(filter)) do
                 if not miner.to_be_deconstructed() and miner.minable and not miner.has_flag('not-deconstructable') and not has_resources(miner) then
                     miner.order_deconstruction(force)
@@ -145,7 +145,7 @@ local function find_network_and_cell(interface)
     if port and port.valid then
         local network = port.logistic_network
         local cell =
-            table.find(
+            flib_array.find_if(
             port.logistic_cell.neighbours,
             function(v)
                 return v.construction_radius > 0

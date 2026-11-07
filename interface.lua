@@ -1,4 +1,4 @@
-local Event = require('lib/stdlib').Event
+local Event = require('__Nanobots2__.lib.stdlib2.event')
 local Queue = require('scripts/hash_queue')
 local interface = {}
 
@@ -7,7 +7,10 @@ function interface.reset_mod(are_you_sure)
     if are_you_sure then
         -- Hand back the items that are in flight before the queues are thrown away.
         interface.reset_queue('nano_queue')
-        storage = {}
+        -- Clear in place, the storage global itself must not be reassigned.
+        for key in pairs(storage) do
+            storage[key] = nil
+        end
         Event.dispatch({name = Event.core_events.init})
         game.print('Full Reset Completed by ' .. player_name)
     else
@@ -31,5 +34,14 @@ function interface.count_queue(queue)
         game.print('Queued:' .. Queue.count(storage[queue]) .. ' Hashed:' .. Queue.hash_count(storage[queue]))
     end
 end
+
+--- Write the storage table to script-output/<mod name>/storage.lua, for debugging.
+function interface.write_storage()
+    helpers.remove_path(script.mod_name)
+    helpers.write_file(script.mod_name .. '/storage.lua', serpent.block(storage, {comment = false, nocode = true, name = 'storage'}))
+end
+
+-- Kept for callers of the 1.x name.
+interface.write_global = interface.write_storage
 
 return interface

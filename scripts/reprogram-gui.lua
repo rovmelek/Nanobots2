@@ -1,5 +1,9 @@
-local Player = require('lib/stdlib').Player
-local Pad = prequire('__PickerAtheneum__/utils/adjustment-pad', true)
+local Player = require('__Nanobots2__.lib.stdlib2.player')
+-- PickerAtheneum's last release (1.2.5) is for Factorio 1.1, so this is inactive in 2.1. Kept for a future 2.x release.
+local has_pad, Pad = pcall(require, '__PickerAtheneum__/utils/adjustment-pad')
+if not has_pad then
+    Pad = nil
+end
 local config = require('config')
 
 local match_to_item = {

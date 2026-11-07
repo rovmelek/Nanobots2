@@ -1,4 +1,3 @@
-local table = require('lib/stdlib').table
 local config = require('config')
 
 local function NtoZ_c(x, y)
@@ -61,7 +60,7 @@ end
 
 --- The number of distinct entities with work queued. Walks the hash, meant for diagnostics only.
 function Queue.hash_count(t)
-    return table.size(t._hash)
+    return table_size(t._hash)
 end
 
 function Queue.get_hash(t, entity)

@@ -70,6 +70,13 @@ The roboport interface allows you to program your logistic networks to do mundan
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for style and tooling and [docs/TESTING.md](docs/TESTING.md) for the manual test checklist. `tools/package.sh` builds the release zip.
 
+#### Third-party code
+
+Nanobots2 needs only the base game. It includes, with their licenses:
+
+- [flib](https://codeberg.org/raiguard/flib) by raiguard (MIT), unchanged, in `lib/flib`, see [lib/flib/LICENSE](lib/flib/LICENSE).
+- Parts of [stdlib2](https://github.com/rovmelek/stdlib2) (ISC, Copyright (c) 2016, Afforess), trimmed, in `lib/stdlib2`, see [lib/stdlib2/LICENSE](lib/stdlib2/LICENSE).
+
 #### Many thanks to
 
 - Articulating for his help and Ideas

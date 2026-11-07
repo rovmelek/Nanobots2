@@ -1,23 +1,30 @@
-local Event = require('lib/stdlib').Event -- protected mode is set in control.lua
-local Area = require('lib/stdlib').Area
-local Position = require('lib/stdlib').Position
-local table = require('lib/stdlib').table
-local time = require('lib/stdlib').time
+local Event = require('__Nanobots2__.lib.stdlib2.event') -- protected mode is set in control.lua
+local flib_array = require('__Nanobots2__.lib.flib.array')
+local flib_bounding_box = require('__Nanobots2__.lib.flib.bounding-box')
+local flib_position = require('__Nanobots2__.lib.flib.position')
+local flib_table = require('__Nanobots2__.lib.flib.table')
+local Area = require('scripts/area')
 local Queue = require('scripts/hash_queue')
 local queue
 local cfg
 --- Handlers for the nano queue, by action name.
 local handlers = {}
 
-local max, floor, table_size, table_find = math.max, math.floor, table_size, table.find
+local max, floor = math.max, math.floor
+local TICKS_PER_SECOND = 60
 
 local config = require('config')
 local armormods = require('scripts/armor-mods')
 local bot_radius = config.BOT_RADIUS
 local queue_speed = config.QUEUE_SPEED_BONUS
 
+--- The distinct values of tbl, in the order pairs() gives the inverted table.
 local function unique(tbl)
-    return table.keys(table.invert(tbl))
+    local values = {}
+    for value in pairs(flib_table.inverted(tbl)) do
+        values[#values + 1] = value
+    end
+    return values
 end
 local inv_list = unique {
     defines.inventory.character_trash, defines.inventory.character_main, defines.inventory.god_main, defines.inventory.chest,
@@ -53,21 +60,21 @@ local function update_settings()
         network_limits = setting['nanobots-network-limits'].value,
         nanobots_auto = setting['nanobots-nanobots-auto'].value,
         equipment_auto = setting['nanobots-equipment-auto'].value,
-        afk_time = setting['nanobots-afk-time'].value * time.second,
+        afk_time = setting['nanobots-afk-time'].value * TICKS_PER_SECOND,
         do_proxies = setting['nanobots-nano-fullfill-requests'].value
     }
 end
 Event.register(defines.events.on_runtime_mod_setting_changed, update_settings)
 update_settings()
 
---- Return the name of the item found for table.find if we found at least 1 item or cheat_mode is enabled.
+--- Is the item in the player's inventory (or vehicle) in the amount needed, or is cheat_mode on?
 --- Doesnt return items with inventory
 --- @param simple_stack SimpleItemStack
---- @param _ any
 --- @param player LuaPlayer
 --- @param at_least_one boolean
+--- @param quality string?
 --- @return boolean
-local _find_item = function(simple_stack, _, player, at_least_one, quality)
+local _find_item = function(simple_stack, player, at_least_one, quality)
     local count = at_least_one and 1 or simple_stack.count
     local prototype = prototypes.item[simple_stack.name]
     if prototype.type ~= 'item-with-inventory' then
@@ -78,6 +85,21 @@ local _find_item = function(simple_stack, _, player, at_least_one, quality)
             local vehicle = player.vehicle
             local train = vehicle and vehicle.train --- @type LuaTrain
             return vehicle and ((vehicle.get_item_count(item) >= count) or (train and train.get_item_count(item) >= count))
+        end
+    end
+end
+
+--- The first of the items that the player has (see _find_item), or nil.
+--- A plain loop, this runs for every scanned entity.
+--- @param items SimpleItemStack[]
+--- @param player LuaPlayer
+--- @param at_least_one boolean?
+--- @param quality string?
+--- @return SimpleItemStack|nil
+local function find_available_item(items, player, at_least_one, quality)
+    for _, item in ipairs(items) do
+        if _find_item(item, player, at_least_one, quality) then
+            return item
         end
     end
 end
@@ -130,7 +152,7 @@ local function nano_network_check(character, target)
         local pnetwork = c.logistic_cell and c.logistic_cell and c.logistic_cell.mobile and c.logistic_cell.logistic_network
         local has_pbots = c.logistic_cell and c.logistic_cell.construction_radius > 0 and c.logistic_cell.logistic_network and
                               c.logistic_cell.logistic_network.all_construction_robots > 0
-        local has_nbots = table.any(networks, function(network)
+        local has_nbots = flib_array.any_of(networks, function(network)
             return network ~= pnetwork and network.all_construction_robots > 0
         end)
         return not (has_pbots or has_nbots)
@@ -283,16 +305,16 @@ end
 local function get_all_items_on_ground(entity, existing_stacks)
     local item_stacks = existing_stacks or {}
     local surface, position, bouding_box = entity.surface, entity.position, entity.ghost_prototype.selection_box
-    local area = Area.offset(bouding_box, position)
+    local area = flib_bounding_box.move(bouding_box, position)
     for _, item_on_ground in pairs(surface.find_entities_filtered { name = 'item-on-ground', area = area }) do
         local ground_stack = item_on_ground.stack
         item_stacks[#item_stacks + 1] = { name = ground_stack.name, count = ground_stack.count, health = ground_stack.health or 1, quality = ground_stack.quality.name }
         item_on_ground.destroy()
     end
-    local inserter_area = Area.expand(area, 3)
+    local inserter_area = flib_bounding_box.resize(area, 3)
     for _, inserter in pairs(surface.find_entities_filtered { area = inserter_area, type = 'inserter' }) do
         local stack = inserter.held_stack
-        if stack.valid_for_read and Position.inside(inserter.held_stack_position, area) then
+        if stack.valid_for_read and flib_bounding_box.contains_position(area, inserter.held_stack_position) then
             item_stacks[#item_stacks + 1] = { name = stack.name, count = stack.count, health = stack.health or 1, quality = stack.quality.name }
             stack.clear()
         end
@@ -650,7 +672,7 @@ function handlers.build_tile_ghost(data)
     local item_ptype = data.item_stack and prototypes.item[data.item_stack.name]
     local tile_ptype = item_ptype and item_ptype.place_as_tile_result.result
     create_projectile('nano-projectile-constructors', surface, force, player.character.position, position)
-    position = Position.floored({ x = position.x, y = position.y })
+    position = flib_position.floor(position)
     -- if the tile was mined, we need to manually place the tile.
     -- checking if the ghost was revived is likely unnecessary but felt safer.
     if tile_was_mined and not ghost_was_revived then
@@ -788,7 +810,7 @@ local function plan_deconstruct(ctx, entity)
         if not player.force.technologies['nanobots-cliff'].researched then
             return
         end
-        local item_stack = table_find(explosives, _find_item, player)
+        local item_stack = find_available_item(explosives, player)
         local explosive = item_stack and get_items_from_inv(player, item_stack, player.cheat_mode)
         if explosive then
             local job = new_job(ctx, entity)
@@ -815,7 +837,7 @@ local function plan_upgrade(ctx, entity)
     if not (prototype and (prototype.name ~= entity.name or quality ~= entity.quality.name)) then
         return
     end
-    local item_stack = table_find(prototype.items_to_place_this or {}, _find_item, player, false, quality)
+    local item_stack = find_available_item(prototype.items_to_place_this or {}, player, false, quality)
     local place_item = item_stack and get_items_from_inv(player, with_quality(item_stack, quality), player.cheat_mode)
     if place_item then
         local job = new_job(ctx, entity)
@@ -837,7 +859,7 @@ local function plan_ghost(ctx, ghost)
     local proto = ghost.ghost_prototype
     -- Ghosts are revived at their own quality, so use an item of that quality. Tiles have no quality.
     local quality = is_entity_ghost and ghost.quality.name or 'normal'
-    local item_stack = table_find(proto.items_to_place_this or {}, _find_item, player, false, quality)
+    local item_stack = find_available_item(proto.items_to_place_this or {}, player, false, quality)
     if not item_stack then
         return
     end
@@ -856,7 +878,7 @@ local function plan_ghost(ctx, ghost)
     end
 
     -- Don't queue tile ghosts if an entity ghost is on top of them.
-    local blocked = ghost.surface.count_entities_filtered {name = 'entity-ghost', area = Area(ghost.bounding_box):non_zero(), limit = 1}
+    local blocked = ghost.surface.count_entities_filtered {name = 'entity-ghost', area = Area.non_zero(ghost.bounding_box), limit = 1}
     if blocked > 0 or not ghost.surface.get_tile(ghost.position) then
         return
     end
@@ -896,7 +918,7 @@ local function plan_proxy(ctx, proxy)
     for _, request in pairs(proxy.item_requests) do
         items[#items + 1] = {name = request.name, count = request.count, quality = quality_name(request.quality)}
     end
-    local item_stack = table_find(items, _find_item, player, true)
+    local item_stack = find_available_item(items, player, true)
     local place_item = item_stack and get_items_from_inv(player, item_stack, player.cheat_mode, true)
     if place_item and place_item.count > 0 then
         local job = new_job(ctx, proxy)
@@ -951,7 +973,7 @@ local function queue_ghosts_in_range(player, pos, nano_ammo)
     local _next_nano_tick = (pdata._next_nano_tick and pdata._next_nano_tick < (game.tick + 2000) and pdata._next_nano_tick) or game.tick
     local tick_spacing = max(1, cfg.queue_rate - (queue_speed[force.get_gun_speed_modifier('nano-ammo')] or queue_speed[4]))
     local next_tick, queue_count = queue:next(_next_nano_tick, tick_spacing)
-    local area = Position.expand_to_area(pos, get_ammo_radius(player, nano_ammo))
+    local area = Area.around(pos, get_ammo_radius(player, nano_ammo))
     local surface = player.surface
 
     ---@type Nanobots.scan_context
@@ -991,7 +1013,7 @@ local function everyone_hates_trees(player, pos, nano_ammo)
     for _, stupid_tree in pairs(player.surface.find_entities_filtered { position = pos, radius = radius, type = 'tree', limit = 200 }) do
         if nano_ammo.valid and nano_ammo.valid_for_read then
             if not stupid_tree.to_be_deconstructed() then
-                local tree_area = Area.expand(stupid_tree.bounding_box, .5)
+                local tree_area = flib_bounding_box.resize(stupid_tree.bounding_box, .5)
                 if player.surface.count_entities_filtered { area = tree_area, name = 'nano-cloud-small-termites' } == 0 then
                     player.surface
                         .create_entity { name = 'nano-projectile-termites', position = player.character.position, force = force, target = stupid_tree, speed = .5 }

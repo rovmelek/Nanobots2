@@ -1,4 +1,4 @@
-local Recipe = require('lib/stdlib-data').Recipe
+local Recipe = require('__Nanobots2__.lib.stdlib2.recipe')
 
 require('prototypes/technology/shortcuts')
 
@@ -7,16 +7,16 @@ if mods['boblibrary'] then
 
     local key = 'bobmods-logistics-disableroboports'
     if settings["startup"][key] and settings["startup"][key].value then
-        Recipe('roboport-interface'):replace_ingredient('roboport', 'bob-logistic-zone-expander')
+        Recipe.replace_ingredient('roboport-interface', 'roboport', 'bob-logistic-zone-expander')
     end
-    Recipe('gun-nano-emitter'):replace_ingredient('electronic-circuit', 'bob-basic-circuit-board')
-    Recipe('ammo-nano-constructors'):replace_ingredient('electronic-circuit', 'bob-basic-circuit-board')
-    Recipe('ammo-nano-termites'):replace_ingredient('electronic-circuit', 'bob-basic-circuit-board')
+    Recipe.replace_ingredient('gun-nano-emitter', 'electronic-circuit', 'bob-basic-circuit-board')
+    Recipe.replace_ingredient('ammo-nano-constructors', 'electronic-circuit', 'bob-basic-circuit-board')
+    Recipe.replace_ingredient('ammo-nano-termites', 'electronic-circuit', 'bob-basic-circuit-board')
 
-    Recipe('equipment-bot-chip-items'):add_ingredient('bob-robot-brain')
-    Recipe('equipment-bot-chip-trees'):add_ingredient('bob-robot-brain')
-    Recipe('equipment-bot-chip-nanointerface'):add_ingredient('bob-robot-brain')
-    Recipe('equipment-bot-chip-nanointerface'):add_ingredient('gun-nano-emitter')
-    Recipe('equipment-bot-chip-launcher'):add_ingredient('bob-robot-brain-combat')
-    Recipe('equipment-bot-chip-feeder'):add_ingredient('bob-robot-brain-combat')
+    Recipe.add_ingredient('equipment-bot-chip-items', 'bob-robot-brain')
+    Recipe.add_ingredient('equipment-bot-chip-trees', 'bob-robot-brain')
+    Recipe.add_ingredient('equipment-bot-chip-nanointerface', 'bob-robot-brain')
+    Recipe.add_ingredient('equipment-bot-chip-nanointerface', 'gun-nano-emitter')
+    Recipe.add_ingredient('equipment-bot-chip-launcher', 'bob-robot-brain-combat')
+    Recipe.add_ingredient('equipment-bot-chip-feeder', 'bob-robot-brain-combat')
 end

@@ -1,7 +1,6 @@
-local Data = require('lib/stdlib-data').Data
 local make_shortcut = require('prototypes/equipment/make_shortcut')
 
-Data {
+data:extend {{
     type = 'recipe',
     name = 'equipment-bot-chip-nanointerface',
     enabled = false,
@@ -12,9 +11,9 @@ Data {
         --bobmods add construction brain
     },
     results = {{type = 'item', name='equipment-bot-chip-nanointerface', amount = 1}}
-}
+}}
 
-Data {
+data:extend {{
     type = 'item',
     name = 'equipment-bot-chip-nanointerface',
     icon = '__Nanobots2__/graphics/icons/equipment-bot-chip-nanointerface.png',
@@ -23,10 +22,9 @@ Data {
     subgroup = 'equipment',
     order = 'e[robotics]-ae[personal-roboport-equipment]',
     stack_size = 20
-}
+}}
 
-local equipment_chip =
-    Data {
+local equipment_chip = {
     type = 'active-defense-equipment',
     name = 'equipment-bot-chip-nanointerface',
     take_result = 'equipment-bot-chip-nanointerface',
@@ -73,6 +71,7 @@ local equipment_chip =
     automatic = false,
     categories = {'armor'}
 }
+data:extend {equipment_chip}
 
 make_shortcut(equipment_chip)
 

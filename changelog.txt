@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.6.0
+Date: 2026-11-07
+  Changes:
+    - Nanobots2 no longer needs the stdlib2 mod, only the base game. The parts of flib (MIT) and stdlib2 (ISC) that it uses are included with their licenses.
+    - The remote interface no longer has the stdlib debug functions dump_all and merge_interfaces, and write_storage only writes the storage file.
+    - Pending version migrations run in version order.
+    - A full reset clears the storage in place.
+---------------------------------------------------------------------------------------------------
 Version: 3.5.3
 Date: 2026-11-07
   Bugfixes:

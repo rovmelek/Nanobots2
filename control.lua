@@ -1,12 +1,11 @@
 local config = require('config')
+local Event = require('__Nanobots2__.lib.stdlib2.event')
 -- Protected mode swallows handler errors. Set config.DEBUG = true in test builds so they crash loudly.
-require('lib/stdlib').Event.set_protected_mode(not config.DEBUG)
-local Interface = require('lib/stdlib').Interface.merge_interfaces(require('interface'))
-local Commands = require('commands')
+Event.set_protected_mode(not config.DEBUG)
 
-local Player = require('lib/stdlib').Player.register_events(true)
-require('lib/stdlib').Force.register_events(true)
-require('lib/stdlib').Changes.register_events('mod_versions', 'changes/versions')
+local Player = require('__Nanobots2__.lib.stdlib2.player').register_events(true)
+require('__Nanobots2__.lib.stdlib2.force').register_events(true)
+require('__Nanobots2__.lib.stdlib2.changes').register_versions('changes/versions')
 
 Player.additional_data({ranges = {}})
 
@@ -16,6 +15,6 @@ require('scripts/armor-mods')
 
 require('scripts/reprogram-gui')
 
-remote.add_interface(script.mod_name, Interface)
+remote.add_interface(script.mod_name, require('interface'))
 
-commands.add_command(script.mod_name, 'Nanobot commands', Commands)
+commands.add_command(script.mod_name, 'Nanobot commands', require('commands'))
