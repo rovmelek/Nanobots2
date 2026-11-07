@@ -10,7 +10,7 @@ local cfg
 --- Handlers for the nano queue, by action name.
 local handlers = {}
 
-local max, floor = math.max, math.floor
+local max, floor, table_size = math.max, math.floor, table_size
 local TICKS_PER_SECOND = 60
 
 local config = require('config')

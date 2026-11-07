@@ -46,7 +46,7 @@ end
 --- Create the data of a player, or of every player when nothing is given. Existing data is kept.
 --- Used as an event handler, so it takes an event as well as an index or name.
 --- @param source number|string|table|nil
---- @return table|nil #the new data when a single player was created
+--- @return table #the new data when a single player was created, else Player
 function Player.init(source)
     storage.players = storage.players or {}
     local player = resolve(source)
@@ -62,6 +62,7 @@ function Player.init(source)
             end
         end
     end
+    return Player
 end
 
 --- The player and their data, the data is created when it is missing.

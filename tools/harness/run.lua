@@ -74,9 +74,9 @@ local function read_file(path)
 end
 
 table.insert(package.searchers, 2, function(name)
-    local prefix = '__Nanobots2__.'
-    if name:sub(1, prefix:len()) == prefix then
-        local path = read_file(ROOT .. '/' .. name:sub(prefix:len() + 1):gsub('%.', '/') .. '.lua')
+    local prefix = '__Nanobots2__'
+    if name:sub(1, prefix:len() + 1):match('^__Nanobots2__[./]$') then
+        local path = read_file(ROOT .. '/' .. name:sub(prefix:len() + 2):gsub('%.', '/') .. '.lua')
         return path and loadfile(path) or ('\n\tno file for ' .. name)
     elseif name:match('^__.-__') then
         return '\n\tmod not installed: ' .. name
@@ -339,6 +339,35 @@ local function run_control_stage()
     check(next(storage._changes) == nil, 'configuration changed: other mods are ignored')
 end
 
+--- Migrations must run in version order, which neither pairs() order nor string order gives for these versions.
+local function run_changes_checks()
+    install_defines()
+    storage = {}
+    install_control_stubs()
+    unload_mod()
+    local ran = {}
+    local function migration(version)
+        return function() ran[#ran + 1] = version end
+    end
+    package.loaded['harness/versions'] = {
+        ['10.0.0'] = migration('10.0.0'),
+        ['9.0.0'] = migration('9.0.0'),
+        ['1.10.0'] = migration('1.10.0'),
+        ['1.9.0'] = migration('1.9.0')
+    }
+    local rec = install_control_stubs()
+    local Changes = require('__Nanobots2__.lib.stdlib2.changes')
+    Changes.register_versions('harness/versions')
+    install_game({[1] = make_player(1)})
+    storage._changes = {}
+    rec.on_configuration_changed({mod_changes = {Nanobots2 = {old_version = '0.1.0', new_version = '11.0.0'}}})
+    check_equal(table.concat(ran, ','), '1.9.0,1.10.0,9.0.0,10.0.0', 'changes: migrations run in version order')
+    check_equal(storage._changes['10.0.0'], '11.0.0', 'changes: the last migration is marked')
+    ran = {}
+    rec.on_configuration_changed({mod_changes = {Nanobots2 = {old_version = '11.0.0', new_version = '11.0.1'}}})
+    check_equal(#ran, 0, 'changes: migrations that ran are not run again')
+end
+
 local function run_event_checks()
     install_defines()
     storage = {}
@@ -522,6 +551,7 @@ end
 
 run_control_stage()
 run_event_checks()
+run_changes_checks()
 run_data_stage_checks()
 
 if failures > 0 then
