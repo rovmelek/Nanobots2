@@ -272,6 +272,7 @@ local function run_control_stage()
     players[2] = make_player(2)
     rec.events[events.on_player_created]({name = events.on_player_created, player_index = 2})
     check(storage.players[2] and storage.players[2].name == 'player2', 'player created: data added')
+    check(storage.players[2].ranges ~= storage.players[1].ranges, 'player created: defaults are deep copies')
     players[2].force = {name = 'enemy'}
     rec.events[events.on_player_changed_force]({name = events.on_player_changed_force, player_index = 2})
     check_equal(storage.players[2].force, 'enemy', 'player changed force: force updated')
@@ -337,6 +338,7 @@ local function run_control_stage()
     storage._changes = {}
     rec.on_configuration_changed({mod_changes = {SomeOtherMod = {old_version = '1.0.0', new_version = '1.0.1'}}})
     check(next(storage._changes) == nil, 'configuration changed: other mods are ignored')
+    expect_messages({}, 'configuration changed (other mod)')
 end
 
 --- Migrations must run in version order, which neither pairs() order nor string order gives for these versions.
@@ -366,6 +368,7 @@ local function run_changes_checks()
     ran = {}
     rec.on_configuration_changed({mod_changes = {Nanobots2 = {old_version = '11.0.0', new_version = '11.0.1'}}})
     check_equal(#ran, 0, 'changes: migrations that ran are not run again')
+    expect_messages({}, 'changes')
 end
 
 local function run_event_checks()
@@ -406,6 +409,7 @@ local function run_event_checks()
     game.connected_players = {make_player(1)}
     check(not pcall(Event.dispatch, {name = id}), 'event: unprotected errors are raised')
     check(not pcall(Event.register, 'not_an_event', first), 'event: unknown string ids are rejected')
+    messages = {}
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -469,6 +473,8 @@ end
 local function run_data_stage(options)
     unload_mod()
     install_defines()
+    -- The data stage has none of the control stage globals.
+    script, game, storage, remote, commands, helpers, prototypes, serpent, table_size = nil, nil, nil, nil, nil, nil, nil, nil, nil
     local raw = base_raw()
     for name in pairs(options.items or {}) do
         raw.item[name] = {type = 'item', name = name}
