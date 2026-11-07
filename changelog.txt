@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.4.1
+Date: 2026-11-07
+  Bugfixes:
+    - Fixed an error when an entity queued for a rotate upgrade was removed before its turn.
+    - Fixed an error when the roboport interface could not revive or create its combinator or radar.
+    - Fixed taking more items from the cursor than were needed when building from the hand.
+    - Moving trains and spidertrons are no longer repaired (2.x entity type names).
+    - All 2.x rail types are skipped for repair when a train is on them, not only straight rails.
+    - Fixed the repair check on the collision mask, which always passed with the 2.x format.
+  Graphics:
+    - The roboport interface uses its high resolution sprites, hr_version is ignored in 2.x.
+---------------------------------------------------------------------------------------------------
 Version: 3.4.0
 Date: 2026-11-07
   Changes:
