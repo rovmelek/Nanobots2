@@ -222,11 +222,13 @@ local function insert_or_spill_items(entity, item_stacks, is_return_cheat)
 end
 
 --- Give a job's items back to its player. Nothing was taken in cheat mode, so nothing is returned.
+--- The cheat mode of the moment the items were taken is stored in the job, the player can change it while jobs wait.
 --- @param player LuaPlayer
 --- @param item_stack ItemStackDefinition|nil
-local function refund(player, item_stack)
+--- @param cheat boolean|nil cheat mode when the job was queued
+local function refund(player, item_stack, cheat)
     if item_stack then
-        return insert_or_spill_items(player, { item_stack }, player.cheat_mode)
+        return insert_or_spill_items(player, { item_stack }, cheat)
     end
 end
 
@@ -493,6 +495,7 @@ end
 --- @field surface LuaSurface
 --- @field position MapPosition
 --- @field unit_number number|nil
+--- @field cheat boolean cheat mode of the player when the items were taken
 --- @field action string
 --- @field hash number set by the queue on insert
 --- @field item_stack ItemStackDefinition|nil
@@ -508,7 +511,7 @@ function handlers.cliff_deconstruction(data)
     end
 
     if not (entity and entity.valid and entity.to_be_deconstructed()) then
-        return refund(player, data.item_stack)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     create_projectile('nano-projectile-deconstructors', entity.surface, entity.force, player.character.position, entity.position)
@@ -560,22 +563,23 @@ function handlers.build_entity_ghost(data)
     end
 
     if not (ghost.valid and data.entity.ghost_name == data.entity_name) then
-        return refund(player, data.item_stack)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     local item_stacks = get_all_items_on_ground(ghost)
     if not player.surface.can_place_entity { name = ghost.ghost_name, position = ghost.position, direction = ghost.direction, force = ghost.force } then
-        return refund(player, data.item_stack)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     local revived, entity, requests = ghost.revive { raise_revive = true }
 
     if not revived then
-        return refund(player, data.item_stack)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     if not entity then
-        if insert_or_spill_items(player, item_stacks, player.cheat_mode) then
+        -- These are real items from the ground, so they are returned in cheat mode too.
+        if insert_or_spill_items(player, item_stacks) then
             create_projectile('nano-projectile-return', surface, player.force, position, player.character.position)
         end
         return
@@ -602,7 +606,7 @@ function handlers.build_tile_ghost(data)
     end
 
     if not ghost.valid then
-        return refund(player, data.item_stack)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     local tile, hidden_tile = surface.get_tile(position), surface.get_hidden_tile(position)
@@ -610,7 +614,7 @@ function handlers.build_tile_ghost(data)
     local tile_was_mined = hidden_tile and tile.prototype.can_be_part_of_blueprint and player.mine_tile(tile)
     local ghost_was_revived = ghost.valid and ghost.revive({ raise_revive = true }) -- Mining tiles invalidates ghosts
     if not (tile_was_mined or ghost_was_revived) then
-        return refund(player, data.item_stack)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     local item_ptype = data.item_stack and prototypes.item[data.item_stack.name]
@@ -638,7 +642,7 @@ function handlers.upgrade_ghost(data)
     end
 
     if not ghost.valid then
-        return refund(player, data.item_stack)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     local entity = surface.create_entity {
@@ -653,7 +657,7 @@ function handlers.upgrade_ghost(data)
         raise_built = true
     }
     if not entity then
-        return refund(player, data.item_stack)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     create_projectile('nano-projectile-constructors', entity.surface, entity.force, player.character.position, entity.position)
@@ -671,11 +675,11 @@ function handlers.item_requests(data)
     end
 
     if not (proxy.valid and target and target.valid) then
-        return refund(player, data.item_stack)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     if not target.can_insert(data.item_stack) then
-        return refund(player, data.item_stack)
+        return refund(player, data.item_stack, data.cheat)
     end
 
     create_projectile('nano-projectile-constructors', proxy.surface, proxy.force, player.character.position, proxy.position)
@@ -684,7 +688,7 @@ function handlers.item_requests(data)
     item_stack.count = item_stack.count - inserted
 
     if item_stack.count > 0 then
-        refund(player, item_stack)
+        refund(player, item_stack, data.cheat)
     end
 
     if inserted > 0 then
@@ -719,6 +723,7 @@ local function new_job(ctx, entity)
         position = entity.position,
         surface = entity.surface,
         unit_number = entity.unit_number,
+        cheat = ctx.player.cheat_mode,
         entity = entity
     }
 end
@@ -1006,23 +1011,23 @@ end
 Event.register(Event.core_events.load, on_nano_load)
 
 local function reset_nano_queue()
-    -- Jobs already took their items from the player, give them back before the jobs are dropped.
-    if queue then
-        for tick, jobs in pairs(queue) do
+    -- Swap in the new queue first, so a failing refund cannot leave jobs in the live queue to be refunded twice.
+    local old = queue
+    storage.nano_queue = Queue(nil, handlers)
+    queue = storage.nano_queue
+    -- Jobs already took their items from the player, give them back before the old jobs are dropped.
+    if old then
+        for tick, jobs in pairs(old) do
             if type(tick) == 'number' then
                 for _, job in pairs(jobs) do
                     local player = game.get_player(job.player_index)
-                    if player and player.valid then
-                        refund(player, job.item_stack)
+                    if player and player.valid and job.item_stack then
+                        pcall(refund, player, job.item_stack, job.cheat)
                     end
                 end
             end
         end
     end
-    storage.nano_queue = nil
-    queue = nil
-    storage.nano_queue = Queue(nil, handlers)
-    queue = storage.nano_queue
     for _, player in pairs(storage.players) do
         player._next_nano_tick = 0
     end

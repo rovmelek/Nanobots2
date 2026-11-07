@@ -104,9 +104,14 @@ end
 
 --Tick handler, handles executing multiple data tables in a queue
 function Queue.execute(t, event)
-    if t[event.tick] then
+    local jobs = t[event.tick]
+    if jobs then
+        -- Take the jobs off the queue before running them. Handlers raise events, and a reset from one of those
+        -- must not find jobs that already ran.
+        t[event.tick] = nil
+        t._count = t._count and (t._count - 1) or count_ticks(t)
         local handlers = getmetatable(t).handlers
-        for _, data in ipairs(t[event.tick]) do
+        for _, data in ipairs(jobs) do
             local index = data.hash
             local handler = handlers[data.action]
             if handler then
@@ -114,13 +119,14 @@ function Queue.execute(t, event)
             else
                 log('Nanobots2: queued action has no handler and was skipped: ' .. tostring(data.action))
             end
-            t._hash[index][data.action] = nil
-            if table.size(t._hash[index]) <= 0 then
-                t._hash[index] = nil
+            local hashed = t._hash[index]
+            if hashed then
+                hashed[data.action] = nil
+                if next(hashed) == nil then
+                    t._hash[index] = nil
+                end
             end
         end
-        t[event.tick] = nil
-        t._count = t._count and (t._count - 1) or count_ticks(t)
     end
     return t
 end
