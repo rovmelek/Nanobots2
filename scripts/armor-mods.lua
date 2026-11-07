@@ -13,6 +13,7 @@ local healer_capsules = config.FOOD
 
 local Position = require('__stdlib2__/stdlib/area/position')
 local max, abs, ceil, floor = math.max, math.abs, math.ceil, math.floor
+local green = {r = 0, g = 1, b = 0}
 
 --(( Helper functions ))-------------------------------------------------------
 
@@ -207,7 +208,7 @@ local function emergency_heal_shield(player, feeders, energy_shields)
                     local heal, locale = get_health_capsules(player)
                     shield.shield = shield.shield + (heal * 1.5)
                     local health_line = {'nanobots.health_line', ceil(abs(shield.shield - last_health)), locale}
-                    player.surface.create_entity {name = 'flying-text', text = health_line, color = defines.color.green, position = pos()}
+                    player.create_local_flying_text {text = health_line, color = green, position = pos()}
                     feeder.energy = feeder.energy - 120
                 else
                     break
@@ -235,7 +236,7 @@ local function emergency_heal_player(player, feeders)
                 player.character.health = last_health + heal
                 local health_line = {'nanobots.health_line', ceil(abs(player.character.health - last_health)), locale}
                 feeder.energy = feeder.energy - 120
-                player.surface.create_entity {name = 'flying-text', text = health_line, color = defines.color.green, position = pos()}
+                player.create_local_flying_text {text = health_line, color = green, position = pos()}
             else
                 return
             end

@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.4.0
+Date: 2026-11-07
+  Changes:
+    - Updated for Factorio 2.1 and stdlib2 2.1.0.
+  Bugfixes:
+    - Fixed the feeder chip heal text, the flying-text entity no longer exists. It is shown as local flying text now.
+    - Fixed module requests (item request proxies) for the 2.x insert plan format.
+    - Fixed spilling items that could not be returned to the player.
+    - Fixed the roboport interface not reading its constant combinator signals (2.x logistic sections).
+    - Fixed the roboport interface wood and fish limits using the old item names and network contents format.
+    - Fixed upgrade planner handling when the upgrade only changes quality, those are left to construction robots.
+---------------------------------------------------------------------------------------------------
 Version: 3.3.1
 Date: 2024-10-28
   Bugfixes: Fixed roboport module usage.
