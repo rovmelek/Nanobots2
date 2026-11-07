@@ -5,8 +5,8 @@ Nothing in the 2.x port has automated coverage yet, so run this list in game bef
 ## Setup
 
 1. Set `NANO.DEBUG = true` in `config.lua`. This turns off stdlib protected mode, so any script error stops the game with a stack trace instead of being hidden. Set it back to `false` before releasing.
-2. Start a new game with Space Age enabled (quality needs it). Enable the console and cheats (`/c game.player.cheat_mode = false` keeps the normal item flow, which is what you want for most cases).
-3. Research Nanobots and the three range and speed techs. Craft the nano emitter and constructor ammo, equip them.
+2. Start a new game with Space Age enabled (quality needs it). Leave `cheat_mode` off for the main pass, because the code takes different paths with it on (items are not consumed or refunded). Optionally run one short pass with it on.
+3. Research `nanobots`, `nano-range-1` to `4`, `nano-speed-1` to `4` and `nanobots-cliff`. Craft the nano emitter and constructor ammo, equip them.
 4. Run `luacheck .` and confirm it is clean.
 
 ## Nanobot gun
@@ -33,7 +33,7 @@ For each case: place the ghost or marker, stand within range, and watch that the
 
 - [ ] Bot chip for items on the ground reprograms personal bots to pick up items.
 - [ ] Bot chip for trees reprograms personal bots to chop trees.
-- [ ] Feeder chip feeds the nano emitter and the player (food from the allowed list).
+- [ ] Feeder chip heals the energy shield, or the player when below 75% health, using healing capsules from the inventory (a flat 10 if there are none).
 - [ ] Launcher chip launches combat robots.
 - [ ] Nano interface chip lets nanobots work inside a roboport network.
 - [ ] The reprogram GUI changes the radius for each ammo type and respects the maximum from research.
@@ -47,13 +47,13 @@ Build the interface inside a roboport network that has construction bots. Set on
 - [ ] `nano-signal-deconstruct-finished-miners` marks drills with no resources left.
 - [ ] `nano-signal-catch-fish` marks fish.
 - [ ] `nano-signal-closest-roboport` limits the work to the attached cell.
-- [ ] A negative signal value only acts while the network holds more than that amount of the item.
+- [ ] A negative value on chop-trees or catch-fish only acts while the network holds fewer than that many wood or raw fish.
 - [ ] The interface can be blueprinted and rebuilt, and its parts die and are removed with it.
 
 ## Commands and saves
 
 - [ ] `/Nanobots2 count nano_queue` and `cell_queue` print the queue sizes.
-- [ ] `/Nanobots2 reset nano_queue` and `cell_queue` work with items queued.
+- [ ] `/Nanobots2 reset nano_queue` and `cell_queue` work with items queued. `/Nanobots2 reset mod` fully resets (admin only).
 - [ ] Save, quit, load: queued work resumes with no error.
 - [ ] Load a save from the previous release and confirm the migration runs.
 
