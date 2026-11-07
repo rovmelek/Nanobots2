@@ -5,7 +5,10 @@ local Event = require('__stdlib2__/stdlib/event/event')
 local Position = require('__stdlib2__/stdlib/area/position')
 local table = require('__stdlib2__/stdlib/utils/table')
 local Queue = require('scripts/hash_queue')
+local events = require('events')
 local queue
+--- Handlers for the cell queue, by action name.
+local handlers = {}
 
 local floor = math.floor
 
@@ -92,7 +95,7 @@ local function get_entity_info(entity)
     return entity.surface, entity.force, entity.position
 end
 
-Queue.mark_items_or_trees =
+handlers.mark_items_or_trees =
     function(data)
     if data.logistic_cell.valid and data.logistic_cell.construction_radius > 0 and data.logistic_cell.logistic_network then
         local surface, force, position = get_entity_info(data.logistic_cell.owner)
@@ -144,7 +147,7 @@ local function has_resources(miner)
     end
 end
 
-Queue.deconstruct_finished_miners = function(data)
+handlers.deconstruct_finished_miners = function(data)
     if not script.active_mods['AutoDeconstruct'] then
         if data.logistic_cell.valid and data.logistic_cell.construction_radius > 0 and data.logistic_cell.logistic_network then
             local surface, force, position = get_entity_info(data.logistic_cell.owner)
@@ -230,7 +233,7 @@ Event.register(defines.events.on_tick, execute_interface_queue)
 end
 Event.register(defines.events.on_entity_died, kill_or_remove_interface_parts)
 Event.register(
-    Event.mined_events,
+    events.mined,
     function(event)
         kill_or_remove_interface_parts(event, true)
     end
@@ -279,7 +282,7 @@ local function build_roboport_interface(event)
         ra.destructible = false
     end
 end
-Event.register(Event.build_events, build_roboport_interface)
+Event.register(events.build, build_roboport_interface)
 
 local function on_sector_scanned(event)
     if event.radar.name == 'roboport-interface-scanner' then
@@ -293,20 +296,20 @@ end
 Event.register(defines.events.on_sector_scanned, on_sector_scanned)
 
 local function on_init()
-    storage.cell_queue = Queue()
+    storage.cell_queue = Queue(nil, handlers)
     queue = storage.cell_queue
 end
 Event.register(Event.core_events.init, on_init)
 
 local function on_load()
-    queue = Queue(storage.cell_queue)
+    queue = Queue(storage.cell_queue, handlers)
 end
 Event.register(Event.core_events.load, on_load)
 
 local function reset_cell_queue()
     storage.cell_queue = nil
     queue = nil
-    storage.cell_queue = Queue()
+    storage.cell_queue = Queue(nil, handlers)
     queue = storage.cell_queue
     for _, fdata in pairs(storage.forces) do
         fdata._next_cell_tick = game and game.tick or 0

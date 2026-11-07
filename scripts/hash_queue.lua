@@ -24,12 +24,17 @@ local function count_ticks(t)
     return count
 end
 
-function Queue.new(t)
+--- Create a queue, or re-attach the metatable to a queue loaded from storage.
+--- The handlers (action name to function) are code, so they live in the metatable and not in storage.
+--- @param t table|nil the queue table from storage
+--- @param handlers table<string, fun(data: table)>|nil
+function Queue.new(t, handlers)
+    local mt = {__index = Queue, handlers = handlers or {}}
     if t and t._hash then
         -- Never write to the table here, Queue.new runs in on_load where storage is read only.
-        return setmetatable(t, Queue.mt)
+        return setmetatable(t, mt)
     else
-        return setmetatable({_hash = {}, _count = 0}, Queue.mt)
+        return setmetatable({_hash = {}, _count = 0}, mt)
     end
 end
 
@@ -100,10 +105,12 @@ end
 --Tick handler, handles executing multiple data tables in a queue
 function Queue.execute(t, event)
     if t[event.tick] then
+        local handlers = getmetatable(t).handlers
         for _, data in ipairs(t[event.tick]) do
             local index = data.hash
-            if Queue[data.action] then
-                Queue[data.action](data)
+            local handler = handlers[data.action]
+            if handler then
+                handler(data)
             else
                 log('Nanobots2: queued action has no handler and was skipped: ' .. tostring(data.action))
             end
@@ -118,7 +125,6 @@ function Queue.execute(t, event)
     return t
 end
 
-Queue.mt = {__index = Queue, __call = nil}
 local mt = {
     __call = function(_, ...)
         return Queue.new(...)
