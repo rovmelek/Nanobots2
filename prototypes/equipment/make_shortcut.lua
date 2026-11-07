@@ -15,14 +15,11 @@ local function make_shortcut(chip)
             localised_name = {'shortcut.toggle-' .. chip.name},
             associated_control_input = nil,
             technology_to_unlock = 'personal-roboport-equipment',
-            icon = {
-                filename = chip.sprite.filename,
-                priority = 'extra-high-no-scale',
-                size = 32,
-                scale = 1,
-                mipmap_count = 0,
-                flags = {'gui-icon'}
-            }
+            -- 2.x shortcuts take file names and sizes, not sprite tables
+            icon = chip.sprite.filename,
+            icon_size = 64,
+            small_icon = chip.sprite.filename,
+            small_icon_size = 64
         }
     end
 end

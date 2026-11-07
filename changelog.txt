@@ -1,4 +1,18 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.4.2
+Date: 2026-11-07
+  Features:
+    - Nanobots respect item quality: ghosts are built and upgrades placed with items of the matching quality, and module requests are filled with the requested quality.
+  Changes:
+    - Upgrades that only change quality are done by nanobots now.
+    - Removed the rotate-only upgrade, Factorio 2.x removed the API it used.
+    - PickerAtheneum is an optional dependency, it provides the range adjustment pad.
+  Bugfixes:
+    - Fixed the nanobot projectile sprite sizes for the 2.x defender graphics.
+    - Fixed the PickerInventoryTools toggle shortcuts using the 1.1 icon format.
+    - The finished-miner check uses the quality aware mining radius when available.
+    - Fixed changelog entries that the in-game changelog could not read.
+---------------------------------------------------------------------------------------------------
 Version: 3.4.1
 Date: 2026-11-07
   Bugfixes:
@@ -25,15 +39,13 @@ Date: 2026-11-07
 ---------------------------------------------------------------------------------------------------
 Version: 3.3.1
 Date: 2024-10-28
-  Bugfixes: Fixed roboport module usage.
+  Bugfixes:
+    - Fixed roboport module usage.
 ---------------------------------------------------------------------------------------------------
 Version: 3.3.0
 Date: 2024-10-28
-  Bugfixes: Fixes and Updates for Factorio 2.0.
----------------------------------------------------------------------------------------------------
-Version: 3.2.20
-Date: ????
-  Changes:
+  Bugfixes:
+    - Fixes and updates for Factorio 2.0.
 ---------------------------------------------------------------------------------------------------
 Version: 3.2.19
 Date: 2022-04-16
