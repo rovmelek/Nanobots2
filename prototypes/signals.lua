@@ -21,24 +21,6 @@ local signal2 = {
     subgroup = 'nanobot-signals',
     order = '[nano-signal]-b'
 }
---luacheck: ignore signal3
---[[local signal3 = {
-    type = 'virtual-signal',
-    name = 'nano-signal-remove-tiles',
-    icon = '__Nanobots2__/graphics/icons/signals/remove-tiles.png',
-    icon_size = 64,
-    subgroup = 'nanobot-signals',
-    order = '[nano-signal]-c'
-}]]
---luacheck: ignore signal4
---[[local signal4 = {
-    type = 'virtual-signal',
-    name = 'nano-signal-landfill-the-world',
-    icon = '__Nanobots2__/graphics/icons/signals/item-on-ground.png',
-    icon_size = 64,
-    subgroup = 'nanobot-signals',
-    order = '[nano-signal]-d'
-}]]
 local signal5 = {
     type = 'virtual-signal',
     name = 'nano-signal-deconstruct-finished-miners',

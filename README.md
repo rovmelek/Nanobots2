@@ -1,4 +1,4 @@
-# NANOBOTS 1.8.8
+# Nanobots2
 
 ## Robot enhancements from the start of the game
 
@@ -54,8 +54,6 @@ The roboport interface allows you to program your logistic networks to do mundan
 - Chop trees: Scan for any trees in range and chop them up. Setting this to a negative symbol will only chop trees if you have less than that amount of raw wood in the network.
 - Gather fish: Sends your construction robots on a fishing expedition. Set to a negative amount to only fish if there is less then that amount in the network.
 - Roboport only: Set this signal to only run this scanner in the nearest roboports zone and not the whole network.
-- (Not implemented yet): Tile builder: Set a tile item signal to pave the network with this tile.
-- (Not implemented yet): Tile remover: Set this virtual signal to dig up all tiles and return them to the network
 - (Not implemented yet): Unit launcher: Launch units to defend against biter attacks. Attach a chest to the scanner combinator and any robots inside this chest will be used for defensive purposes.
 
 --------------------------------------------------------------------------------
@@ -66,7 +64,11 @@ The roboport interface allows you to program your logistic networks to do mundan
 - More power armor equipment modules
 - More roboport interface logic
 - Even more script optimization's
-- Found a bug? Report it here: <https://github.com/Nexela/Nanobots/issues>
+- Found a bug? Report it here: <https://github.com/rovmelek/Nanobots2/issues>
+
+#### Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for style and tooling and [docs/TESTING.md](docs/TESTING.md) for the manual test checklist. `tools/package.sh` builds the release zip.
 
 #### Many thanks to
 

@@ -1,4 +1,4 @@
-local Data = require('__stdlib2__/stdlib/data/data')
+local Data = require('lib/stdlib-data').Data
 local make_shortcut = require('prototypes/equipment/make_shortcut')
 
 Data {

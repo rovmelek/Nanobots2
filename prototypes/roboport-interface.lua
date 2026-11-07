@@ -1,8 +1,8 @@
 -------------------------------------------------------------------------------
 --[[Roboport Interface]] -- Logistic Network roboport interface module
 -------------------------------------------------------------------------------
-local Data = require('__stdlib2__/stdlib/data/data')
-local Recipe = require('__stdlib2__/stdlib/data/recipe')
+local Data = require('lib/stdlib-data').Data
+local Recipe = require('lib/stdlib-data').Recipe
 --Roboport with custom GFX no zones, no recharge, radar with nil gfx, cc with nil gfx - selectable
 --256 x 224
 
