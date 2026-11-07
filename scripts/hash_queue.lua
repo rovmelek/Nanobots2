@@ -13,11 +13,23 @@ end
 
 local Queue = {}
 
+--- Count the ticks that have work queued, by walking the queue.
+local function count_ticks(t)
+    local count = 0
+    for index in pairs(t) do
+        if type(index) == 'number' then
+            count = count + 1
+        end
+    end
+    return count
+end
+
 function Queue.new(t)
     if t and t._hash then
+        -- Never write to the table here, Queue.new runs in on_load where storage is read only.
         return setmetatable(t, Queue.mt)
     else
-        return setmetatable({_hash = {}}, Queue.mt)
+        return setmetatable({_hash = {}, _count = 0}, Queue.mt)
     end
 end
 
@@ -29,15 +41,21 @@ function Queue.set_hash(t, data)
     return index
 end
 
+--- The number of ticks that have work queued, kept as a running counter so this is O(1).
 function Queue.count(t)
-    local count = 0
-    for index in pairs(t) do
-        if type(index) == 'number' then
-            count = count + 1
-        end
-    end
+    return t._count or count_ticks(t)
+end
 
-    return count, table.size(t._hash)
+--- Store the running counter. Queues saved before it existed get it from the 3.5.0 migration, the first insert
+--- also does it. Must not be called from on_load.
+function Queue.rebuild_count(t)
+    t._count = count_ticks(t)
+    return t._count
+end
+
+--- The number of distinct entities with work queued. Walks the hash, meant for diagnostics only.
+function Queue.hash_count(t)
+    return table.size(t._hash)
 end
 
 function Queue.get_hash(t, entity)
@@ -48,7 +66,13 @@ end
 function Queue.insert(t, data, tick, count)
     data.hash = Queue.set_hash(t, data)
 
-    t[tick] = t[tick] or {}
+    if not t._count then
+        Queue.rebuild_count(t)
+    end
+    if not t[tick] then
+        t[tick] = {}
+        t._count = t._count + 1
+    end
     t[tick][#t[tick] + 1] = data
 
     return t, count
@@ -89,6 +113,7 @@ function Queue.execute(t, event)
             end
         end
         t[event.tick] = nil
+        t._count = t._count and (t._count - 1) or count_ticks(t)
     end
     return t
 end
