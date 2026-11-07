@@ -77,14 +77,20 @@ table.insert(package.searchers, 2, function(name)
     local prefix = '__Nanobots2__'
     if name:sub(1, prefix:len() + 1):match('^__Nanobots2__[./]$') then
         local path = read_file(ROOT .. '/' .. name:sub(prefix:len() + 2):gsub('%.', '/') .. '.lua')
-        return path and loadfile(path) or ('\n\tno file for ' .. name)
+        if path then
+            return assert(loadfile(path))
+        end
+        return '\n\tno file for ' .. name
     elseif name:match('^__.-__') then
         return '\n\tmod not installed: ' .. name
     end
     local caller = debug.getinfo(3, 'S').source:gsub('^@', '')
     local caller_dir = caller:match('^(.*)/[^/]*$') or '.'
     local path = read_file(caller_dir .. '/' .. name .. '.lua') or read_file(ROOT .. '/' .. name .. '.lua')
-    return path and loadfile(path) or ('\n\tno file for ' .. name)
+    if path then
+        return assert(loadfile(path))
+    end
+    return '\n\tno file for ' .. name
 end)
 
 local function unload_mod()
@@ -208,20 +214,25 @@ local function install_game(players)
     }
 end
 
+--- The game.print messages since the last call must match the patterns: each pattern at least once, nothing else.
 local function expect_messages(patterns, context)
-    local remaining = {}
+    local unexpected, seen = {}, {}
     for _, message in ipairs(messages) do
         local matched = false
-        for _, pattern in ipairs(patterns) do
+        for i, pattern in ipairs(patterns) do
             if message:find(pattern, 1, true) then
                 matched = true
+                seen[i] = true
             end
         end
         if not matched then
-            remaining[#remaining + 1] = message
+            unexpected[#unexpected + 1] = message
         end
     end
-    check(#remaining == 0, context .. ': unexpected game.print messages: ' .. table.concat(remaining, ' | '))
+    check(#unexpected == 0, context .. ': unexpected game.print messages: ' .. table.concat(unexpected, ' | '))
+    for i, pattern in ipairs(patterns) do
+        check(seen[i], context .. ': expected game.print message was not printed: ' .. pattern)
+    end
     messages = {}
 end
 
@@ -279,6 +290,11 @@ local function run_control_stage()
     rec.events[events.on_player_removed]({name = events.on_player_removed, player_index = 2})
     check_equal(storage.players[2], nil, 'player removed: data removed')
     players[2] = nil
+    players[3] = make_player(3)
+    local _, late = require('__Nanobots2__.lib.stdlib2.player').get(3)
+    check(late and late.index == 3 and type(late.ranges) == 'table', 'player get: data of a player without data is created')
+    players[3] = nil
+    storage.players[3] = nil
     local new_force = {name = 'rebels', valid = true}
     game.forces.rebels = new_force
     rec.events[events.on_force_created]({name = events.on_force_created, force = new_force})
@@ -289,11 +305,15 @@ local function run_control_stage()
     -- Commands and the remote interface.
     local command = rec.commands.Nanobots2
     command({parameter = 'count  nano_queue'})
+    local nano_queue = storage.nano_queue
     command({parameter = 'reset nano_queue'})
+    check(storage.nano_queue ~= nano_queue, 'reset nano_queue: the queue was replaced')
     command({parameter = 'reset cell_queue'})
     expect_messages({'Queued:', 'Resetting nano_queue', 'Resetting cell_queue'}, 'commands')
     local before = storage
+    storage.harness_sentinel = true
     command({parameter = 'reset mod'})
+    check(storage.harness_sentinel == nil, 'reset mod: storage was cleared')
     check(storage == before, 'reset mod: the storage table is cleared in place')
     check(storage.players and storage.players[1] and storage.nano_queue and storage.cell_queue, 'reset mod: init ran again')
     expect_messages({'Resetting nano_queue', 'Full Reset Completed', 'Nanobots are now ready to serve'}, 'reset mod')
@@ -405,6 +425,9 @@ local function run_event_checks()
     messages = {}
     game.connected_players = {}
     check(not pcall(Event.dispatch, {name = id}), 'event: protected mode raises when nobody can read the error')
+    game.connected_players = {make_player(1)} -- someone can read a protected error
+    Event.register(Event.core_events.init, function() error('boom') end)
+    check(not pcall(Event.dispatch, {name = 'on_init'}), 'event: bootstrap events are never protected')
     Event.set_protected_mode(false)
     game.connected_players = {make_player(1)}
     check(not pcall(Event.dispatch, {name = id}), 'event: unprotected errors are raised')
