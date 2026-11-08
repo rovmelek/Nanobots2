@@ -163,7 +163,7 @@ jobs:
           rm "$d/info.json.bak"
           run_dirty d3 --dirty "$RUNNER_TEMP/d3"
           [ "$rc" = 1 ]
-          case "$err" in *"error: info.json in the working copy:"*) ;; *) echo "bad stderr: $err"; exit 1;; esac
+          printf '%s\n' "$err" | grep -q '^error: info.json in the working copy:'
           [ ! -e "$RUNNER_TEMP/d3" ]
 
           # 6. an intent-to-add entry makes the snapshot fail

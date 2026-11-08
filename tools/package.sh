@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Builds <name>_<version>.zip, one top-level folder inside, the form Factorio's
-# mods folder expects. Name and version come from info.json.
-# By default packages the committed HEAD. With --dirty it packages the working
-# copy instead (tracked files as they are on disk plus staged new files;
-# untracked files are not included), for local testing.
-# Files marked export-ignore in .gitattributes are left out.
+# Builds <name>_<version>.zip (name and version from info.json) with one
+# top-level folder inside, the form Factorio's mods folder expects.
+# Packages the committed HEAD; --dirty packages the working copy instead
+# (tracked files as on disk plus staged new files, no untracked files), for
+# local testing. Files marked export-ignore in .gitattributes are left out.
 # usage: tools/package.sh [--dirty] [output-dir]
 set -euo pipefail
 unset CDPATH
