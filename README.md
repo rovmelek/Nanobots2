@@ -1,5 +1,16 @@
 # Nanobots2
 
+## About this fork
+
+Nanobots2 is a fork of [**Nanobots**](https://github.com/Nexela/Nanobots) ([mod portal](https://mods.factorio.com/mod/Nanobots)) by Nicholas "Nexela" Dunn, the original author of this mod, who created its design and wrote most of the original code. Thank you, Nexela.
+
+- Factorio 2.0 port and the rename to Nanobots2: Jackie Mueller ([jackiepmueller/Nanobots2](https://github.com/jackiepmueller/Nanobots2), the upstream of this fork).
+- Graphics rework and tech tweaks (2021): snouz.
+- 2.0 gameplay fixes (iron stick unlock, repair pack prerequisite, cliff deconstruction with Nano Explosives): Ricardo Gonçalves.
+- Fix for Factorio 2.0.33+ (bundles a graphic the game removed): artanin.
+- This fork ports the mod to Factorio 2.1 and removes its dependencies on other mods: it needs only the base game. flib v0.17.2 (MIT) and a trimmed stdlib2 (ISC) are included in `lib/`, and the dead PickerAtheneum dependency is gone. See [Third-party code](#third-party-code) and [changelog.txt](changelog.txt).
+- All contributors: <https://github.com/rovmelek/Nanobots2/graphs/contributors>
+
 ## Robot enhancements from the start of the game
 
 Learn how to create powerful but consumable robots after learning automation. Get up and running fast by using these robots to help you build your way up to Roboports and even smarter robots. Add modules to your power armor to reprogram your personal roboport to complete mundane tasks automatically. Place roboport interfaces to have your logistic networks perform tasks while you are away.
@@ -74,3 +85,7 @@ Nanobots2 needs only the base game. It includes, with their licenses:
 - KatherineOfSky, Arumba, Momentary Flux (and All other youtubers Showing off the Nanobots.)
 - Xterminator and his Nanobots spotlight. <https://www.youtube.com/watch?v=sh_oIgUMfV4>
 - And you as an everyday user of Nanobots.
+
+#### License
+
+MIT, Copyright (c) 2017 Nicholas "Nexela" Dunn. See [LICENSE](LICENSE). The code in `lib/` keeps its own licenses.
