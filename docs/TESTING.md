@@ -4,7 +4,7 @@ The offline harness (`lua5.2 tools/harness/run.lua`) checks that the mod loads a
 
 ## Setup
 
-1. Set `NANO.DEBUG = true` in `config.lua`. This turns off protected mode, so any script error stops the game with a stack trace instead of being hidden. Set it back to `false` before releasing.
+1. Set `NANO.DEBUG = true` in `config.lua`. This turns off protected mode, so any script error stops the game with a stack trace instead of being hidden. Build the test zip with `tools/package.sh --dirty` so the uncommitted setting is included. Set it back to `false` before releasing.
 2. Start a new game with Space Age enabled (quality needs it). Leave `cheat_mode` off for the main pass, because the code takes different paths with it on (items are not consumed or refunded). Optionally run one short pass with it on.
 3. Research `nanobots`, `nano-range-1` to `4`, `nano-speed-1` to `4` and `nanobots-cliff`. Craft the nano emitter and constructor ammo, equip them.
 4. Run `luacheck .` and `lua5.2 tools/harness/run.lua` and confirm both are clean.

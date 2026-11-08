@@ -26,9 +26,9 @@
 
 ## Testing
 
-Run `lua5.2 tools/harness/run.lua` from the repository root. It loads the control and data stages under stubs of the Factorio API and checks storage shapes, on_init, on_load, migrations and the prototypes. CI runs it too. Gameplay still needs the manual list, see `docs/TESTING.md`. Set `NANO.DEBUG = true` in `config.lua` for test builds so errors stop the game, and set it back before release.
+Run `lua5.2 tools/harness/run.lua` from the repository root. It loads the control and data stages under stubs of the Factorio API and checks storage shapes, on_init, on_load, migrations and the prototypes. CI runs it too. Gameplay still needs the manual list, see `docs/TESTING.md`. Set `NANO.DEBUG = true` in `config.lua` for test builds so errors stop the game, and set it back before release. Build a test zip with `tools/package.sh --dirty`, which includes your uncommitted changes. Without `--dirty` the script packages the last commit only.
 
 ## Releasing
 
 1. Bump `version` in `info.json` and add the entry on top of `changelog.txt`.
-2. Run `tools/package.sh` to build `Nanobots2_<version>.zip`, or push a `v*` tag and take the zip from the Package workflow.
+2. Commit, then run `tools/package.sh` to build `Nanobots2_<version>.zip` from that commit, or push a `v*` tag and take the zip from the Package workflow.
