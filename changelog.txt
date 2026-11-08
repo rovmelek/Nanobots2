@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.6.2
+Date: 2026-11-08
+  Changes:
+    - The README now credits Nexela, the original author, and the people who ported the mod to 2.0, and says this is a fork for Factorio 2.1 that needs only the base game.
+---------------------------------------------------------------------------------------------------
 Version: 3.6.1
 Date: 2026-11-07
   Changes:
