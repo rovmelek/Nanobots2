@@ -1,0 +1,181 @@
+name: Package check
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and check the zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="$(/bin/bash tools/package.sh "$RUNNER_TEMP")"
+          unzip -Z1 "$zip"
+
+          version="$(git show HEAD:info.json | sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*$/\1/p')"
+          name="$(git show HEAD:info.json | sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*$/\1/p')"
+          base="$(basename "$zip" .zip)"
+          [ "$name" = "Nanobots2" ]
+          [ "$base" = "Nanobots2_$version" ]
+
+          entries="$(unzip -Z1 "$zip")"
+          # every entry is inside the one top-level folder
+          [ -z "$(printf '%s\n' "$entries" | grep -vE "^$base/" || true)" ]
+          for f in info.json LICENSE thumbnail.png control.lua data.lua changelog.txt lib/flib/LICENSE lib/stdlib2/LICENSE; do
+            printf '%s\n' "$entries" | grep -qxF "$base/$f"
+          done
+
+          # export-ignored files are absent
+          ignored='\.gitattributes$|\.gitignore$|\.github/|\.luacheckrc$|\.luarc\.json$|\.mailmap$|\.pdn/|\.styluaignore$|CONTRIBUTING\.md$|docs/|stylua\.toml$|tools/'
+          if printf '%s\n' "$entries" | grep -E "^$base/($ignored)"; then
+            echo "export-ignored file found in zip"; exit 1
+          fi
+
+          # file count matches the tracked files that are not export-ignored
+          expected="$(git ls-files | grep -cvE "^($ignored)")"
+          actual="$(printf '%s\n' "$entries" | grep -cv '/$')"
+          [ "$expected" = "$actual" ]
+
+          # contents: info.json is exact, line endings are LF
+          unzip -p "$zip" "$base/info.json" | cmp - <(git show HEAD:info.json)
+          if unzip -p "$zip" "$base/control.lua" | grep -q "$(printf '\r')"; then
+            echo "CR found in control.lua"; exit 1
+          fi
+
+          # no argument: writes the zip into the current directory
+          mkdir "$RUNNER_TEMP/noarg"
+          zip3="$(cd "$RUNNER_TEMP/noarg" && /bin/bash "$GITHUB_WORKSPACE/tools/package.sh")"
+          [ "$zip3" = "$RUNNER_TEMP/noarg/$base.zip" ]
+          cmp "$zip" "$zip3"
+
+          # negative cases (run under /bin/bash, bash 3.2 on macOS)
+          rc=0; out="$(/bin/bash tools/package.sh a b 2>/dev/null)" || rc=$?
+          [ "$rc" = 2 ]
+          [ -z "$out" ]
+          rc=0; out="$(/bin/bash tools/package.sh --help 2>/dev/null)" || rc=$?
+          [ "$rc" = 2 ]
+          [ -z "$out" ]
+          rc=0; out="$(/bin/bash tools/package.sh --bogus 2>/dev/null)" || rc=$?
+          [ "$rc" = 2 ]
+          [ -z "$out" ]
+
+          git clone -q . "$RUNNER_TEMP/bad"
+          sed -i.bak 's/"version": "[^"]*"/"version": "1.1"/' "$RUNNER_TEMP/bad/info.json"
+          rm "$RUNNER_TEMP/bad/info.json.bak"
+          git -C "$RUNNER_TEMP/bad" -c user.name=ci -c user.email=ci@example.invalid commit -qam bad
+          mkdir "$RUNNER_TEMP/badout"
+          rc=0; err="$(/bin/bash "$RUNNER_TEMP/bad/tools/package.sh" "$RUNNER_TEMP/badout" 2>&1 >/dev/null)" || rc=$?
+          [ "$rc" = 1 ]
+          case "$err" in error:*) ;; *) echo "bad stderr: $err"; exit 1;; esac
+          [ -z "$(ls -A "$RUNNER_TEMP/badout")" ]
+
+          touch "$RUNNER_TEMP/afile"
+          rc=0; err="$(/bin/bash tools/package.sh "$RUNNER_TEMP/afile" 2>&1 >/dev/null)" || rc=$?
+          [ "$rc" = 1 ]
+          [ "$(printf '%s\n' "$err" | wc -l | tr -d ' ')" = 1 ]
+          case "$err" in "error: cannot create output directory"*) ;; *) echo "bad stderr: $err"; exit 1;; esac
+
+          # hostile git settings give a byte-identical zip
+          printf '* eol=crlf\n' > "$RUNNER_TEMP/attrs"
+          printf '[core]\n\tautocrlf = true\n\teol = crlf\n\tattributesFile = %s\n' "$RUNNER_TEMP/attrs" > "$RUNNER_TEMP/gitconfig"
+          zip4="$(GIT_CONFIG_GLOBAL="$RUNNER_TEMP/gitconfig" TZ=America/Los_Angeles /bin/bash tools/package.sh "$RUNNER_TEMP/hostile")"
+          cmp "$zip" "$zip4"
+
+          # --dirty, in a fresh clone so the workspace stays clean
+          git clone -q . "$RUNNER_TEMP/d"
+          d="$RUNNER_TEMP/d"
+          # runs the clone's script; sets rc, out (stdout) and err (stderr)
+          run_dirty() {
+            name="$1"; shift
+            rc=0; out="$(/bin/bash "$d/tools/package.sh" "$@" 2>"$RUNNER_TEMP/$name.err")" || rc=$?
+            err="$(cat "$RUNNER_TEMP/$name.err")"
+          }
+
+          # 1. clean clone: HEAD is packaged, byte-identical to the plain build
+          run_dirty d0 --dirty "$RUNNER_TEMP/d0"
+          [ "$rc" = 0 ]
+          case "$err" in *"note: no uncommitted changes"*) ;; *) echo "bad stderr: $err"; exit 1;; esac
+          cmp "$zip" "$RUNNER_TEMP/d0/$base.zip"
+
+          # 1b. touched but unchanged file
+          touch -t 200001010000 "$d/control.lua"
+          run_dirty d0b --dirty "$RUNNER_TEMP/d0b"
+          [ "$rc" = 0 ]
+          case "$err" in *"note: no uncommitted changes"*) ;; *) echo "bad stderr: $err"; exit 1;; esac
+          cmp "$zip" "$RUNNER_TEMP/d0b/$base.zip"
+
+          # 2. uncommitted edits: changed file, new version, staged new file,
+          # untracked file, CRLF file, NANO.DEBUG on
+          printf -- '-- dirty build\n' >> "$d/control.lua"
+          sed -i.bak 's/"version": "[^"]*"/"version": "3.6.99"/' "$d/info.json"
+          rm "$d/info.json.bak"
+          sed -i.bak 's/^NANO\.DEBUG = false$/NANO.DEBUG = true/' "$d/config.lua"
+          rm "$d/config.lua.bak"
+          printf -- '-- new\n' > "$d/newfile.lua"
+          git -C "$d" add newfile.lua
+          printf 'stray\n' > "$d/stray.txt"
+          awk '{printf "%s\r\n", $0}' "$d/data.lua" > "$d/data.lua.tmp" && mv "$d/data.lua.tmp" "$d/data.lua"
+          grep -q "$(printf '\r')" "$d/data.lua"
+
+          # 3. no flag: the committed state, with a hint
+          run_dirty d1 "$RUNNER_TEMP/d1"
+          [ "$rc" = 0 ]
+          [ "$out" = "$RUNNER_TEMP/d1/$base.zip" ]
+          case "$err" in *"use --dirty"*) ;; *) echo "bad stderr: $err"; exit 1;; esac
+          unzip -p "$RUNNER_TEMP/d1/$base.zip" "$base/control.lua" | cmp - <(git -C "$d" show HEAD:control.lua)
+          unzip -p "$RUNNER_TEMP/d1/$base.zip" "$base/config.lua" | grep -qx 'NANO.DEBUG = false'
+
+          # 4. --dirty (directory first, flag second): the working copy
+          dbase=Nanobots2_3.6.99
+          run_dirty d2 "$RUNNER_TEMP/d2" --dirty
+          [ "$rc" = 0 ]
+          [ "$out" = "$RUNNER_TEMP/d2/$dbase.zip" ]
+          case "$err" in *"note: packaging the working copy"*) ;; *) echo "bad stderr: $err"; exit 1;; esac
+          case "$err" in *"warning: 1 untracked file(s) not packaged"*) ;; *) echo "bad stderr: $err"; exit 1;; esac
+          dentries="$(unzip -Z1 "$RUNNER_TEMP/d2/$dbase.zip")"
+          unzip -p "$RUNNER_TEMP/d2/$dbase.zip" "$dbase/control.lua" | cmp - "$d/control.lua"
+          unzip -p "$RUNNER_TEMP/d2/$dbase.zip" "$dbase/config.lua" | grep -qx 'NANO.DEBUG = true'
+          printf '%s\n' "$dentries" | grep -qxF "$dbase/newfile.lua"
+          if printf '%s\n' "$dentries" | grep -qxF "$dbase/stray.txt"; then
+            echo "untracked file packaged"; exit 1
+          fi
+          if unzip -p "$RUNNER_TEMP/d2/$dbase.zip" "$dbase/data.lua" | grep -q "$(printf '\r')"; then
+            echo "CR found in data.lua"; exit 1
+          fi
+          if printf '%s\n' "$dentries" | grep -E "^$dbase/($ignored)"; then
+            echo "export-ignored file found in dirty zip"; exit 1
+          fi
+          [ -z "$(printf '%s\n' "$dentries" | grep -vE "^$dbase/" || true)" ]
+
+          # 5. bad version in the working copy
+          sed -i.bak 's/"version": "[^"]*"/"version": "1.1"/' "$d/info.json"
+          rm "$d/info.json.bak"
+          run_dirty d3 --dirty "$RUNNER_TEMP/d3"
+          [ "$rc" = 1 ]
+          printf '%s\n' "$err" | grep -q '^error: info.json in the working copy:'
+          [ ! -e "$RUNNER_TEMP/d3" ]
+
+          # 6. an intent-to-add entry makes the snapshot fail
+          git -C "$d" checkout -- info.json
+          git -C "$d" add -N stray.txt
+          run_dirty d4 --dirty "$RUNNER_TEMP/d4"
+          [ "$rc" = 1 ]
+          case "$err" in *"error: cannot snapshot the working copy"*) ;; *) echo "bad stderr: $err"; exit 1;; esac
+          [ ! -e "$RUNNER_TEMP/d4" ]
+
+          # 7. no stash was stored
+          [ -z "$(git -C "$d" stash list)" ]
+          if git -C "$d" rev-parse -q --verify refs/stash >/dev/null; then
+            echo "stash ref exists"; exit 1
+          fi
