@@ -89,7 +89,8 @@ end
 
 local function get_health_capsules(player)
     for name, health in pairs(healer_capsules) do
-        if prototypes.item[name] and player.remove_item({name = name, count = 1}) > 0 then
+        local stack = {name = name, count = 1}
+        if prototypes.item[name] and (player.remove_item(stack) > 0 or player.character.remove_item(stack) > 0) then
             return max(health, 10), prototypes.item[name].localised_name or {'nanobots.free-food-unknown'}
         end
     end
@@ -99,7 +100,7 @@ end
 local function get_best_follower_capsule(player)
     local robot_list = {}
     for _, data in ipairs(combat_robots) do
-        local count = prototypes.item[data.capsule] and player.get_item_count(data.capsule) or 0
+        local count = prototypes.item[data.capsule] and max(player.get_item_count(data.capsule), player.character.get_item_count(data.capsule)) or 0
         if count > 0 then
             robot_list[#robot_list + 1] = {capsule = data.capsule, unit = data.unit, count = count, qty = data.qty, rank = data.rank}
         end
@@ -120,7 +121,7 @@ end
 local function get_chip_results(player, equipment, eq_name, search_type, bot_counter)
     local radius = get_chip_radius(player, eq_name)
     local area = Area.around(player.character.position, radius)
-    local item_entities = equipment and bot_counter(0) > 0 and player.surface.find_entities_filtered {area = area, type = search_type, limit = 200}
+    local item_entities = equipment and bot_counter(0) > 0 and player.character.surface.find_entities_filtered {area = area, type = search_type, limit = 200}
     local num_items = item_entities and #item_entities or 0
     local num_chips = item_entities and #equipment or 0
     return equipment, item_entities, num_items, num_chips, bot_counter
@@ -145,7 +146,7 @@ end
 --Mark items for deconstruction if player has roboport
 local function process_ready_chips(player, equipment)
     local rad = player.character.logistic_cell.construction_radius
-    local enemy = player.surface.find_nearest_enemy {position = player.character.position, max_distance = rad + 10, force = player.force}
+    local enemy = player.character.surface.find_nearest_enemy {position = player.character.position, max_distance = rad + 10, force = player.force}
     if not enemy and (equipment['equipment-bot-chip-items'] or equipment['equipment-bot-chip-trees']) then
         local bots_available = get_bot_counts(player.character)
         if bots_available > 0 then
@@ -166,15 +167,20 @@ local function process_ready_chips(player, equipment)
         local num_launchers = #launchers
         local capsule_data = get_best_follower_capsule(player)
         if capsule_data then
-            local max_bots = player.force.maximum_following_robot_count + player.character_maximum_following_robot_count_bonus
-            local existing = #player.following_robots
+            local max_bots = player.force.maximum_following_robot_count + player.character.character_maximum_following_robot_count_bonus
+            local existing = #player.character.following_robots
             local next_capsule = 1
             local capsule = capsule_data[next_capsule]
             while capsule and existing < (max_bots - capsule.qty) and capsule.count > 0 and num_launchers > 0 do
                 local launcher = launchers[num_launchers]
                 while capsule and existing < (max_bots - capsule.qty) and launcher and launcher.energy >= 500 do
-                    if player.remove_item({name = capsule.capsule, count = 1}) == 1 then
-                        player.surface.create_entity {name = capsule.unit, position = player.character.position, force = player.force, target = player.character}
+                    local stack = {name = capsule.capsule, count = 1}
+                    local removed = player.remove_item(stack)
+                    if removed == 0 then
+                        removed = player.character.remove_item(stack)
+                    end
+                    if removed == 1 then
+                        player.character.surface.create_entity {name = capsule.unit, position = player.character.position, force = player.force, target = player.character}
                         launcher.energy = launcher.energy - 500
                         capsule.count = capsule.count - 1
                         existing = existing + capsule.qty
@@ -182,6 +188,9 @@ local function process_ready_chips(player, equipment)
                             next_capsule = next_capsule + 1
                             capsule = capsule_data[next_capsule]
                         end
+                    else
+                        -- Could not take a capsule, stop instead of looping forever.
+                        capsule = nil
                     end
                 end
                 num_launchers = num_launchers - 1
@@ -203,7 +212,7 @@ local function emergency_heal_shield(player, feeders, energy_shields)
                     local heal, locale = get_health_capsules(player)
                     shield.shield = shield.shield + (heal * 1.5)
                     local health_line = {'nanobots.health_line', ceil(abs(shield.shield - last_health)), locale}
-                    player.create_local_flying_text {text = health_line, color = green, position = pos()}
+                    player.create_local_flying_text {text = health_line, color = green, position = pos(), surface = player.character.surface}
                     feeder.energy = feeder.energy - 120
                 else
                     break
@@ -231,7 +240,7 @@ local function emergency_heal_player(player, feeders)
                 player.character.health = last_health + heal
                 local health_line = {'nanobots.health_line', ceil(abs(player.character.health - last_health)), locale}
                 feeder.energy = feeder.energy - 120
-                player.create_local_flying_text {text = health_line, color = green, position = pos()}
+                player.create_local_flying_text {text = health_line, color = green, position = pos(), surface = player.character.surface}
             else
                 return
             end

@@ -21,4 +21,10 @@ changes['3.5.0'] = function()
     end
 end
 
+changes['3.6.3'] = function()
+    -- 3.6.2 could strand nano jobs on a polling error (their tick was never executed and their hashes stayed set).
+    -- Reset the queue once: queued items go back to their character, or are dropped where the job was.
+    interface.reset_queue('nano_queue')
+end
+
 return changes
