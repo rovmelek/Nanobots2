@@ -243,14 +243,14 @@ local function insert_or_spill_items(entity, item_stacks, is_return_cheat)
     end
 end
 
---- Give a job's items back to its player. Nothing was taken in cheat mode, so nothing is returned.
+--- Give a job's items back to its player's character (the player controller has no inventory in remote view). Nothing was taken in cheat mode, so nothing is returned.
 --- The cheat mode of the moment the items were taken is stored in the job, the player can change it while jobs wait.
 --- @param player LuaPlayer
 --- @param item_stack ItemStackDefinition|nil
 --- @param cheat boolean|nil cheat mode when the job was queued
 local function refund(player, item_stack, cheat)
     if item_stack then
-        return insert_or_spill_items(player, { item_stack }, cheat)
+        return insert_or_spill_items(player.character or player, { item_stack }, cheat)
     end
 end
 
@@ -397,7 +397,7 @@ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
             -- Not enough items, put back what was already taken.
             if new_item_stack.count > 0 then
                 local taken = finish()
-                insert_or_spill_items(entity, { taken })
+                insert_or_spill_items(entity.character or entity, { taken })
             end
             return nil
         end
@@ -405,8 +405,9 @@ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
 end
 
 --- Manually drain ammo, if it is the last bit of ammo in the stack pull in more ammo from inventory if available
---- @param player LuaPlayer the player object --- Todo Character?
+--- @param player LuaPlayer the player object
 --- @param ammo LuaItemStack the ammo itemstack
+--- @param amount number?
 --- @return boolean #Ammo was drained
 local function ammo_drain(player, ammo, amount)
     if player.cheat_mode then
@@ -417,7 +418,10 @@ local function ammo_drain(player, ammo, amount)
     local name = ammo.name
     ammo.drain_ammo(amount)
     if not ammo.valid_for_read then
-        local new = player.get_main_inventory().find_item_stack(name)
+        -- Use the character's inventory: the player's main inventory is nil in remote view.
+        local character = player.character
+        local inventory = character and character.get_main_inventory()
+        local new = inventory and inventory.find_item_stack(name)
         if new then
             ammo.set_stack(new)
             new.clear()
@@ -487,9 +491,14 @@ end
 --- Attempt to satisfy module requests from player inventory
 --- @param proxy LuaEntity the item request proxy to get requests from
 --- @param entity LuaEntity the entity to satisfy requests for
---- @param player LuaEntity the entity to get modules from
+--- @param player LuaPlayer the player to get modules from
 local function satisfy_requests(proxy, entity, player)
-    local pinv = player.get_main_inventory()
+    -- Use the character's inventory: the player's main inventory is nil in remote view.
+    local character = player.character
+    local pinv = character and character.get_main_inventory()
+    if not (pinv or player.cheat_mode) then
+        return
+    end
     for _, request in pairs(proxy.item_requests) do
         if not proxy.valid then
             return
@@ -627,7 +636,7 @@ function handlers.build_entity_ghost(data)
 
     if not entity then
         -- These are real items from the ground, so they are returned in cheat mode too.
-        if insert_or_spill_items(player, item_stacks) then
+        if insert_or_spill_items(player.character, item_stacks) then
             create_projectile('nano-projectile-return', surface, player.force, position, player.character.position)
         end
         return
@@ -635,7 +644,7 @@ function handlers.build_entity_ghost(data)
 
     create_projectile('nano-projectile-constructors', entity.surface, entity.force, player.character.position, entity.position)
     restore_health(entity, data.item_stack)
-    if insert_or_spill_items(player, insert_into_entity(entity, item_stacks)) then
+    if insert_or_spill_items(player.character, insert_into_entity(entity, item_stacks)) then
         create_projectile('nano-projectile-return', surface, player.force, position, player.character.position)
     end
     if requests then
@@ -974,7 +983,7 @@ local function queue_ghosts_in_range(player, pos, nano_ammo)
     local tick_spacing = max(1, cfg.queue_rate - (queue_speed[force.get_gun_speed_modifier('nano-ammo')] or queue_speed[4]))
     local next_tick, queue_count = queue:next(_next_nano_tick, tick_spacing)
     local area = Area.around(pos, get_ammo_radius(player, nano_ammo))
-    local surface = player.surface
+    local surface = player.character.surface
 
     ---@type Nanobots.scan_context
     local ctx = {player = player, force = force, ammo = nano_ammo, next_tick = next_tick, queue_count = queue_count}
@@ -1010,12 +1019,13 @@ end
 local function everyone_hates_trees(player, pos, nano_ammo)
     local radius = get_ammo_radius(player, nano_ammo)
     local force = player.force
-    for _, stupid_tree in pairs(player.surface.find_entities_filtered { position = pos, radius = radius, type = 'tree', limit = 200 }) do
+    local surface = player.character.surface
+    for _, stupid_tree in pairs(surface.find_entities_filtered { position = pos, radius = radius, type = 'tree', limit = 200 }) do
         if nano_ammo.valid and nano_ammo.valid_for_read then
             if not stupid_tree.to_be_deconstructed() then
                 local tree_area = flib_bounding_box.resize(stupid_tree.bounding_box, .5)
-                if player.surface.count_entities_filtered { area = tree_area, name = 'nano-cloud-small-termites' } == 0 then
-                    player.surface
+                if surface.count_entities_filtered { area = tree_area, name = 'nano-cloud-small-termites' } == 0 then
+                    surface
                         .create_entity { name = 'nano-projectile-termites', position = player.character.position, force = force, target = stupid_tree, speed = .5 }
                     ammo_drain(player, nano_ammo, 1)
                 end
@@ -1028,29 +1038,42 @@ end
 
 --[[ EVENTS --]]
 -- The Tick Handler
+--- @param player LuaPlayer a connected player that passed is_connected_player_ready
+local function poll_player(player)
+    if cfg.nanobots_auto and (not cfg.network_limits or nano_network_check(player.character)) then
+        local gun, nano_ammo, ammo_name = get_gun_ammo_name(player, 'gun-nano-emitter')
+        if gun then
+            if ammo_name == 'ammo-nano-constructors' then
+                queue_ghosts_in_range(player, player.character.position, nano_ammo)
+            elseif ammo_name == 'ammo-nano-termites' then
+                everyone_hates_trees(player, player.character.position, nano_ammo)
+            end
+        end -- Gun and Ammo check
+    end
+    if cfg.equipment_auto then
+        armormods.prepare_chips(player)
+    end -- Auto Equipment
+end
+
 --- @param event on_tick
 local function poll_players(event)
     -- Run logic for nanobots and power armor modules
     -- if event.tick % math.ceil(#game.connected_players/cfg.poll_rate) == 0 then
     if event.tick % max(1, floor(cfg.poll_rate / #game.connected_players)) == 0 then
         local last_player, player = next(game.connected_players, storage._last_player)
+        -- Advance first, so a failing player does not block the others.
+        storage._last_player = last_player
         -- Establish connected, non afk, player character
         if player and is_connected_player_ready(player) then
-            if cfg.nanobots_auto and (not cfg.network_limits or nano_network_check(player.character)) then
-                local gun, nano_ammo, ammo_name = get_gun_ammo_name(player, 'gun-nano-emitter')
-                if gun then
-                    if ammo_name == 'ammo-nano-constructors' then
-                        queue_ghosts_in_range(player, player.character.position, nano_ammo)
-                    elseif ammo_name == 'ammo-nano-termites' then
-                        everyone_hates_trees(player, player.character.position, nano_ammo)
-                    end
-                end -- Gun and Ammo check
+            if config.DEBUG then
+                poll_player(player)
+            else
+                local ok, err = pcall(poll_player, player)
+                if not ok then
+                    log('Nanobots2: polling player ' .. player.index .. ' failed: ' .. tostring(err))
+                end
             end
-            if cfg.equipment_auto then
-                armormods.prepare_chips(player)
-            end -- Auto Equipment
         end -- Player Ready
-        storage._last_player = last_player
     end -- NANO Automatic scripts
     queue:execute(event)
 end
@@ -1085,8 +1108,12 @@ local function reset_nano_queue()
             if type(tick) == 'number' then
                 for _, job in pairs(jobs) do
                     local player = game.get_player(job.player_index)
-                    if player and player.valid and job.item_stack then
-                        pcall(refund, player, job.item_stack, job.cheat)
+                    if job.item_stack then
+                        if player and player.valid and player.character then
+                            pcall(refund, player, job.item_stack, job.cheat)
+                        else
+                            pcall(spill_job_items, job)
+                        end
                     end
                 end
             end

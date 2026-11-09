@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.6.3
+Date: 2026-11-09
+  Bugfixes:
+    - Fixed an error when the nano emitter used up its ammo while in remote view (map view or on a space platform). It could stop queued nanobot jobs, losing their items.
+    - Fixed an error when nanobots inserted requested modules while in remote view.
+    - In remote view, the items of nanobot jobs that could not be finished, and items picked up from under built ghosts, go into the character's inventory, and what does not fit drops next to the character instead of where the remote view camera is.
+    - Fixed a possible freeze when the bot launcher chip could not take a combat robot capsule.
+    - An error while scanning around a player no longer stops the queued nanobot jobs of that tick.
+    - Loading a save from an earlier version resets the nano queue once, so jobs stranded by the error above are cleared: their items go back to the character or are dropped where the job was, and the ghosts are built again.
+    - Resetting the nano queue now drops the items of jobs whose player is gone or has no character on the ground where the job was, instead of losing them.
+    - Fixed nanobots and equipment working on the surface being viewed in remote view instead of the character's.
+---------------------------------------------------------------------------------------------------
 Version: 3.6.2
 Date: 2026-11-08
   Changes:

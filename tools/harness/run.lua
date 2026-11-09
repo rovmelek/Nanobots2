@@ -361,14 +361,17 @@ local function run_control_stage()
     storage._changes = {['1.8.2'] = '3.5.3'}
     storage.nano_queue._count = nil
     logs = {}
+    local saved_nano = storage.nano_queue
     rec.on_configuration_changed({mod_changes = {Nanobots2 = {old_version = '3.5.3', new_version = '3.6.0'}}})
     local first, second = log_index('Migration completed for version 1.8.7'), log_index('Migration completed for version 3.5.0')
     check(first and second and first < second, 'configuration changed: 1.8.7 then 3.5.0 ran in order')
     check_equal(log_index('Migration completed for version 1.8.2'), nil, 'configuration changed: 1.8.2 did not run again')
     check_equal(storage._changes['1.8.7'], '3.6.0', 'configuration changed: 1.8.7 marked')
     check_equal(storage._changes['3.5.0'], '3.6.0', 'configuration changed: 3.5.0 marked')
-    check(type(storage.nano_queue._count) == 'number' and storage.nano_queue._hash, 'configuration changed: queue shape rebuilt')
-    expect_messages({'Resetting cell_queue'}, 'configuration changed')
+    check_equal(storage._changes['3.6.3'], '3.6.0', 'configuration changed: 3.6.3 marked')
+    check(type(saved_nano._count) == 'number' and saved_nano._hash, 'configuration changed: 3.5.0 rebuilt the old queue')
+    check(storage.nano_queue ~= saved_nano, 'configuration changed: 3.6.3 reset the nano queue')
+    expect_messages({'Resetting cell_queue', 'Resetting nano_queue'}, 'configuration changed')
 
     -- A mod change that is not ours does nothing.
     storage._changes = {}
